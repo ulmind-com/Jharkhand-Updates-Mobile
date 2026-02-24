@@ -1,361 +1,127 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
-import Toast from 'react-native-toast-message';
 import { MotiView } from 'moti';
-
-const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
+import { ThemeContext } from '../context/ThemeContext';
 
 export default function MyPostsScreen() {
     const navigation = useNavigation();
-    const [posts, setPosts] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('ALL');
+    const [role, setRole] = useState('user');
+    const [pendingCounts, setPendingCounts] = useState({});
+    const { isDarkMode, colors } = React.useContext(ThemeContext);
+    const styles = getStyles(colors, isDarkMode);
 
-    const tabs = [
-        { id: 'ALL', label: 'All Posts' },
-        { id: 'COMMUNITY', label: 'Community' },
-        { id: 'JOB', label: 'Jobs' },
-        { id: 'EVENT', label: 'Events' },
-        { id: 'PROPERTY', label: 'Properties' }
-    ];
+    const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
     useEffect(() => {
-        fetchMyPosts();
+        const fetchRoleAndCounts = async () => {
+            let userRole = Platform.OS === 'web' ? localStorage.getItem('role') : await SecureStore.getItemAsync('role');
+            if (userRole) setRole(userRole);
+
+            if (userRole === 'admin') {
+                const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+                if (!token) return;
+
+                const fetchCount = async (categoryStr) => {
+                    try {
+                        const res = await axios.get(`${BASE_URL}/${categoryStr}/pending`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        return (res.data.data || []).length;
+                    } catch (e) {
+                        return 0;
+                    }
+                };
+
+                const [jobs, events, properties, community] = await Promise.all([
+                    fetchCount('jobs'),
+                    fetchCount('events'),
+                    fetchCount('properties'),
+                    fetchCount('community')
+                ]);
+
+                setPendingCounts({
+                    jobs, events, properties, community
+                });
+            }
+        };
+        fetchRoleAndCounts();
     }, []);
 
-    const fetchMyPosts = async () => {
-        setLoading(true);
-        try {
-            let token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
-            if (!token) {
-                navigation.replace('Login');
-                return;
-            }
+    const categories = [
+        { id: 'jobs', label: 'Jobs', icon: 'briefcase', color: '#10b981' },
+        { id: 'events', label: 'Events', icon: 'calendar', color: '#10b981' },
+        { id: 'properties', label: 'Properties', icon: 'home', color: '#10b981' },
+        { id: 'community', label: 'Community', icon: 'people', color: '#10b981' }
+    ];
 
-            const headers = { Authorization: `Bearer ${token}` };
+    if (role === 'admin') {
+        categories.push({ id: 'stateNews', label: 'State News', icon: 'newspaper', color: '#10b981' });
+    }
 
-            // In a real scenario, you'd hit a dedicated `/users/me/posts` endpoint.
-            // But simulating gathering them by hitting multiple authenticated lists
-            const [communityRes, jobsRes, eventsRes, propsRes] = await Promise.all([
-                axios.get(`${BASE_URL}/community/user`, { headers }).catch(() => ({ data: [] })),
-                axios.get(`${BASE_URL}/jobs/user`, { headers }).catch(() => ({ data: [] })),
-                axios.get(`${BASE_URL}/events/user`, { headers }).catch(() => ({ data: [] })),
-                axios.get(`${BASE_URL}/properties/user`, { headers }).catch(() => ({ data: [] }))
-            ]);
-
-            const mapData = (res, type) => {
-                const d = Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data?.content) ? res.data.content : []);
-                return d.map(item => ({ ...item, postType: type }));
-            };
-
-            const allPosts = [
-                ...mapData(communityRes, 'COMMUNITY'),
-                ...mapData(jobsRes, 'JOB'),
-                ...mapData(eventsRes, 'EVENT'),
-                ...mapData(propsRes, 'PROPERTY')
-            ];
-
-            // Sort by latest
-            allPosts.sort((a, b) => new Date(b.createdAt || b.postedAt) - new Date(a.createdAt || a.postedAt));
-            setPosts(allPosts);
-
-        } catch (error) {
-            console.error("Error fetching my posts:", error);
-            Toast.show({ type: 'error', text1: 'Failed to load posts' });
-        } finally {
-            setLoading(false);
+    const handleSelectCategory = (category) => {
+        if (Platform.OS !== 'web') {
+            Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
-    };
-
-    const confirmDelete = (postId, postType) => {
-        if (Platform.OS === 'web') {
-            if (window.confirm("Are you sure you want to delete this post?")) {
-                handleDelete(postId, postType);
-            }
-        } else {
-            Alert.alert("Delete Post", "Are you sure you want to delete this post? This action cannot be undone.", [
-                { text: "Cancel", style: "cancel" },
-                { text: "Delete", onPress: () => handleDelete(postId, postType), style: "destructive" }
-            ]);
-        }
-    };
-
-    const handleDelete = async (postId, postType) => {
-        try {
-            let token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
-            const headers = { Authorization: `Bearer ${token}` };
-
-            let endpoint = '';
-            if (postType === 'COMMUNITY') endpoint = `${BASE_URL}/community/${postId}`;
-            if (postType === 'JOB') endpoint = `${BASE_URL}/jobs/${postId}`;
-            if (postType === 'EVENT') endpoint = `${BASE_URL}/events/${postId}`;
-            if (postType === 'PROPERTY') endpoint = `${BASE_URL}/properties/${postId}`;
-
-            await axios.delete(endpoint, { headers });
-
-            // Remove from local state immediately
-            setPosts(prev => prev.filter(p => !(p.id === postId && p.postType === postType)));
-            Toast.show({ type: 'success', text1: 'Post deleted successfully' });
-
-        } catch (error) {
-            console.error("Delete error:", error);
-            Toast.show({ type: 'error', text1: 'Failed to delete post' });
-        }
-    };
-
-    const filteredPosts = activeTab === 'ALL'
-        ? posts
-        : posts.filter(p => p.postType === activeTab);
-
-    const renderPost = ({ item }) => {
-        const title = item.title || item.name || item.jobTitle || item.content;
-
-        return (
-            <MotiView
-                style={styles.postCard}
-                from={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-            >
-                <View style={styles.cardHeader}>
-                    <View style={styles.badge}>
-                        <Text style={styles.badgeText}>{item.postType}</Text>
-                    </View>
-                    <Text style={styles.dateText}>
-                        {new Date(item.createdAt || item.postedAt).toLocaleDateString()}
-                    </Text>
-                </View>
-
-                <Text style={styles.title} numberOfLines={2}>{title}</Text>
-
-                <View style={styles.actionRow}>
-                    <TouchableOpacity
-                        style={[styles.actionBtn, styles.editBtn]}
-                        onPress={() => Toast.show({ type: 'info', text1: 'Editing coming soon' })}
-                    >
-                        <Ionicons name="pencil" size={16} color="#047857" />
-                        <Text style={styles.editBtnText}>Edit</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.actionBtn, styles.deleteBtn]}
-                        onPress={() => confirmDelete(item.id, item.postType)}
-                    >
-                        <Ionicons name="trash" size={16} color="#ef4444" />
-                        <Text style={styles.deleteBtnText}>Delete</Text>
-                    </TouchableOpacity>
-                </View>
-            </MotiView>
-        );
+        navigation.navigate('MyPostsList', { categoryId: category.id, categoryLabel: category.label });
     };
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }}>
-                    <Ionicons name="arrow-back" size={24} color="#1f2937" />
+                <TouchableOpacity style={styles.backButton} onPress={() => {
+                    if (Platform.OS !== 'web') { Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+                    navigation.goBack();
+                }}>
+                    <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>My Posts</Text>
+                <Text style={styles.headerTitle}>My Posts & Listings</Text>
                 <View style={{ width: 40 }} />
             </View>
 
-            {/* Filter Tabs */}
-            <View style={styles.tabsContainer}>
-                <FlatList
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    data={tabs}
-                    keyExtractor={item => item.id}
-                    contentContainerStyle={styles.tabsScroll}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity
-                            style={[styles.tab, activeTab === item.id && styles.activeTab]}
-                            onPress={() => setActiveTab(item.id)}
-                        >
-                            <Text style={[styles.tabText, activeTab === item.id && styles.activeTabText]}>
-                                {item.label}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
-                />
-            </View>
+            <View style={styles.content}>
+                <Text style={styles.subtitle}>Select a category to view your posts</Text>
 
-            {loading ? (
-                <View style={styles.centerBox}>
-                    <ActivityIndicator size="large" color="#047857" />
-                </View>
-            ) : filteredPosts.length > 0 ? (
-                <FlatList
-                    data={filteredPosts}
-                    keyExtractor={(item) => `${item.postType}-${item.id}`}
-                    renderItem={renderPost}
-                    contentContainerStyle={styles.listContainer}
-                    showsVerticalScrollIndicator={false}
-                />
-            ) : (
-                <View style={styles.centerBox}>
-                    <Ionicons name="document-text-outline" size={64} color="#d1d5db" />
-                    <Text style={styles.emptyTitle}>No posts found</Text>
-                    <Text style={styles.emptyDesc}>You haven't created any {activeTab !== 'ALL' ? activeTab.toLowerCase() : ''} posts yet.</Text>
-                </View>
-            )}
+                {categories.map((cat, index) => (
+                    <MotiView
+                        key={cat.id}
+                        from={{ opacity: 0, translateY: 10 }}
+                        animate={{ opacity: 1, translateY: 0 }}
+                        transition={{ delay: index * 50 }}
+                    >
+                        <TouchableOpacity style={styles.card} onPress={() => handleSelectCategory(cat)}>
+                            <View style={[styles.iconBox, { backgroundColor: cat.color + '1A' }]}>
+                                <Ionicons name={cat.icon} size={24} color={cat.color} />
+                            </View>
+                            <Text style={styles.cardLabel}>{cat.label}</Text>
+                            {role === 'admin' && pendingCounts[cat.id] > 0 && (
+                                <View style={styles.badge}>
+                                    <Text style={styles.badgeText}>{pendingCounts[cat.id]}</Text>
+                                </View>
+                            )}
+                            <Ionicons name="chevron-forward" size={20} color={colors.textDim} />
+                        </TouchableOpacity>
+                    </MotiView>
+                ))}
+            </View>
         </SafeAreaView>
     );
 }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f3f4f6',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        backgroundColor: '#ffffff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#e5e7eb',
-    },
-    backButton: {
-        padding: 8,
-        marginLeft: -8,
-        width: 40,
-    },
-    headerTitle: {
-        fontSize: 18, 
-        color: '#111827',
-    },
-    tabsContainer: {
-        backgroundColor: '#ffffff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#e5e7eb',
-    },
-    tabsScroll: {
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-    },
-    tab: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 20,
-        marginRight: 8,
-        backgroundColor: '#f3f4f6',
-    },
-    activeTab: {
-        backgroundColor: '#047857',
-    },
-    tabText: {
-        fontSize: 14, 
-        color: '#4b5563',
-    },
-    activeTabText: {
-        color: '#ffffff',
-    },
-    listContainer: {
-        padding: 16,
-    },
-    postCard: {
-        backgroundColor: '#ffffff',
-        borderRadius: 20,
-        padding: 16,
-        marginBottom: 12,
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-    },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    badge: {
-        backgroundColor: '#d1fae5',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
-    badgeText: {
-        color: '#065f46',
-        fontSize: 10, 
-    },
-    dateText: {
-        fontSize: 12, fontFamily: 'Outfit_400Regular',
-        color: '#6b7280',
-    },
-    title: {
-        fontSize: 16, 
-        color: '#1f2937',
-        lineHeight: 22,
-        marginBottom: 16,
-    },
-    actionRow: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 12,
-        borderTopWidth: 1,
-        borderTopColor: '#f3f4f6',
-        paddingTop: 12,
-    },
-    actionBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 6,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        borderWidth: 1,
-    },
-    editBtn: {
-        borderColor: '#d1fae5',
-        backgroundColor: '#ecfdf5',
-    },
-    editBtnText: {
-        marginLeft: 6,
-        color: '#047857',
-        fontFamily: 'Outfit_600SemiBold',
-        fontSize: 14, fontFamily: 'Outfit_400Regular',
-    },
-    deleteBtn: {
-        borderColor: '#fee2e2',
-        backgroundColor: '#fef2f2',
-    },
-    deleteBtnText: {
-        marginLeft: 6,
-        color: '#ef4444',
-        fontFamily: 'Outfit_600SemiBold',
-        fontSize: 14, fontFamily: 'Outfit_400Regular',
-    },
-    centerBox: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 32,
-    },
-    emptyTitle: {
-        fontSize: 18, 
-        color: '#111827',
-        marginTop: 16,
-        marginBottom: 8,
-    },
-    emptyDesc: {
-        fontSize: 14, fontFamily: 'Outfit_400Regular',
-        color: '#6b7280',
-        textAlign: 'center',
-        lineHeight: 20,
-    }
+const getStyles = (colors, isDarkMode) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 16, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+    backButton: { padding: 8, marginLeft: -8, width: 40 },
+    headerTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
+    content: { padding: 20 },
+    subtitle: { fontSize: 14, fontFamily: 'Outfit_400Regular', color: colors.textDim, marginBottom: 20 },
+    card: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, padding: 16, borderRadius: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDarkMode ? 0.3 : 0.03, shadowRadius: 8, elevation: 1 },
+    iconBox: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+    cardLabel: { flex: 1, fontSize: 16, fontFamily: 'Outfit_600SemiBold', color: colors.text },
+    badge: { backgroundColor: '#ef4444', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, marginRight: 8, justifyContent: 'center', alignItems: 'center' },
+    badgeText: { color: '#fff', fontSize: 12, fontFamily: 'Outfit_700Bold' }
 });
-
-
-
-
-
-
-

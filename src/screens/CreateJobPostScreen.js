@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 import Toast from 'react-native-toast-message';
 import axios from 'axios';
+import { Audio } from 'expo-av';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
@@ -97,8 +98,31 @@ export default function CreateJobPostScreen() {
             });
 
             if (res.data.success) {
-                Toast.show({ type: 'success', text1: 'Success', text2: 'Job posted successfully!' });
-                navigation.goBack();
+                if (Platform.OS !== 'web') {
+                    Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+                const isPending = res.data.data && res.data.data.status === 'PENDING';
+                Toast.show({ 
+                    type: 'success', 
+                    text1: isPending ? 'Pending Approval' : 'Success', 
+                    text2: isPending ? 'Your post is waiting for admin approval.' : 'Job posted successfully!' 
+                });
+
+                try {
+                    const { sound } = await Audio.Sound.createAsync(
+                        require('../../assets/sounds/success.mp3'),
+                        { shouldPlay: true }
+                    );
+                    sound.setOnPlaybackStatusUpdate(status => {
+                        if (status.didJustFinish) sound.unloadAsync();
+                    });
+                } catch (audioErr) {
+                    console.log("Audio play error", audioErr);
+                }
+
+                setTimeout(() => {
+                    navigation.navigate('Main', { screen: 'Jobs' });
+                }, 1000);
             }
         } catch (error) {
             console.error("Job post error:", error);
@@ -111,7 +135,7 @@ export default function CreateJobPostScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#047857" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Post a Job</Text>
@@ -174,7 +198,16 @@ export default function CreateJobPostScreen() {
                         <TextInput style={styles.input} placeholder="https://..." value={applicationLink} onChangeText={setApplicationLink} placeholderTextColor="#9ca3af" autoCapitalize="none" />
                     </View>
 
-                    <TouchableOpacity style={[styles.submitBtn, loading && { opacity: 0.7 }]} onPress={handleSubmit} disabled={loading}>
+                    <TouchableOpacity
+                        style={[styles.submitBtn, loading && { opacity: 0.7 }]}
+                        onPress={() => {
+                            if (Platform.OS !== 'web') {
+                                Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            }
+                            handleSubmit();
+                        }}
+                        disabled={loading}
+                    >
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Post Job</Text>}
                     </TouchableOpacity>
 

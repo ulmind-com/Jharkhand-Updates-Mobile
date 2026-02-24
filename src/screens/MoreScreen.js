@@ -46,6 +46,22 @@ export default function MoreScreen() {
                         <Ionicons name="chevron-forward" size={20} color={colors.textDim} />
                     </TouchableOpacity>
 
+                    <TouchableOpacity style={styles.menuItem} onPress={() => handleNavigate('EmailService')}>
+                        <View style={[styles.iconBox, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#e0f2fe' }]}>
+                            <Ionicons name="mail" size={24} color={isDarkMode ? '#38bdf8' : '#0284c7'} />
+                        </View>
+                        <Text style={styles.menuText}>Email Service</Text>
+                        <Ionicons name="chevron-forward" size={20} color={colors.textDim} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => handleNavigate('LiveSports')}>
+                        <View style={[styles.iconBox, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#ffedd5' }]}>
+                            <Ionicons name="football" size={24} color={isDarkMode ? '#fb923c' : '#ea580c'} />
+                        </View>
+                        <Text style={styles.menuText}>Live Sports</Text>
+                        <Ionicons name="chevron-forward" size={20} color={colors.textDim} />
+                    </TouchableOpacity>
+
                 </View>
             </ScrollView>
         </SafeAreaView>

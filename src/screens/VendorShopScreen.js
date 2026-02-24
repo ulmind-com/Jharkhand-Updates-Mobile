@@ -183,7 +183,7 @@ export default function VendorShopScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             {/* Header Back Button Overlay */}
             <View style={styles.headerOverlay}>
-                <TouchableOpacity style={styles.backButton} onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }}>
+                <TouchableOpacity style={styles.backButton} onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                 </TouchableOpacity>
             </View>

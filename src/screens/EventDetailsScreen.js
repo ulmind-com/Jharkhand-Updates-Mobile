@@ -194,6 +194,7 @@ export default function EventDetailsScreen() {
     const [currentUser, setCurrentUser] = useState(null);
     const [imageRatio, setImageRatio] = useState(null);
     const [isImageViewVisible, setIsImageViewVisible] = useState(false);
+    const [processingAdmin, setProcessingAdmin] = useState(false);
 
     useEffect(() => {
         const fetchCurrentUser = async () => {
@@ -233,6 +234,22 @@ export default function EventDetailsScreen() {
             navigation.goBack();
         } finally {
             setLoading(false);
+        }
+    };
+
+    
+    const handleAdminAction = async (action) => {
+        try {
+            setProcessingAdmin(true);
+            const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+            await axios.post(`${BASE_URL}/events/${eventId}/${action}`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            Toast.show({ type: 'success', text1: 'Success', text2: `Event ${action}d successfully` });
+            navigation.goBack();
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Error', text2: `Failed to ${action} event` });
+            setProcessingAdmin(false);
         }
     };
 
@@ -370,7 +387,7 @@ export default function EventDetailsScreen() {
                 style={{ flex: 1 }}
             >
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Event Details</Text>

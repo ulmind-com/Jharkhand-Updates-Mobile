@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { View as MotiView } from 'moti';
@@ -24,12 +24,15 @@ export default function NewsScreen() {
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [imageDimensions, setImageDimensions] = useState({});
 
-    useEffect(() => {
-        setPage(0);
-        setHasMore(true);
-        fetchNews(0, false, selectedState);
-    }, [selectedState]);
+    useFocusEffect(
+        useCallback(() => {
+            setPage(0);
+            setHasMore(true);
+            fetchNews(0, false, selectedState);
+        }, [selectedState])
+    );
 
     const fetchNews = async (pageNum, append = false, targetState = selectedState) => {
         if (append) setLoadingMore(true);
@@ -82,14 +85,24 @@ export default function NewsScreen() {
             >
                 <TouchableOpacity style={{ flex: 1 }} activeOpacity={0.9} onPress={() => navigation.navigate('StateNewsDetails', { newsId: item.id })}>
                     <View style={styles.imageContainer}>
-                        {item.imageUrls?.length > 0 && !isVideo ? (
-                            <Image
-                                source={{ uri: item.imageUrls[0] }}
-                                style={styles.newsImage}
-                                resizeMode="cover"
-                            />
-                        ) : (
-                            <View style={styles.placeholderContainer}>
+                        {item.imageUrls?.length > 0 && !isVideo ? (() => {
+                            const imgUri = item.imageUrls[0];
+                            if (!imageDimensions[item.id]) {
+                                Image.getSize(imgUri, (w, h) => {
+                                    setImageDimensions(prev => ({ ...prev, [item.id]: h / w }));
+                                }, () => {
+                                    setImageDimensions(prev => ({ ...prev, [item.id]: 0.5625 })); // default 16:9 fallback
+                                });
+                            }
+                            return (
+                                <Image
+                                    source={{ uri: imgUri }}
+                                    style={[styles.newsImage, { aspectRatio: imageDimensions[item.id] ? (1 / imageDimensions[item.id]) : 1.77, height: undefined }]}
+                                    resizeMode="contain"
+                                />
+                            );
+                        })() : (
+                            <View style={[styles.placeholderContainer, { height: 250 }]}>
                                 <Ionicons name={isVideo ? "play-circle" : "newspaper"} size={48} color="#9ca3af" />
                             </View>
                         )}
@@ -164,11 +177,11 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     card: {
         backgroundColor: colors.surface, borderRadius: 20, marginBottom: 20, overflow: 'hidden',
         elevation: 6, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: isDarkMode ? 0.3 : 0.15, shadowRadius: 8,
-        height: 300, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border
+        borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border, minHeight: 250 // increased from 150 to restore styling
     },
-    imageContainer: { flex: 1, position: 'relative', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#e5e7eb' },
-    newsImage: { width: '100%', height: '100%' },
-    placeholderContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#e5e7eb' },
+    imageContainer: { flex: 1, position: 'relative', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#1f2937' },
+    newsImage: { width: '100%' },
+    placeholderContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#1f2937' },
     overlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0,0,0,0.5)',

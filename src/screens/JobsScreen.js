@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { View as MotiView } from 'moti';
 import { JobSkeleton } from '../components/Skeletons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ThemeContext } from '../context/ThemeContext';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -22,10 +22,13 @@ export default function JobsScreen() {
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [imageDimensions, setImageDimensions] = useState({});
 
-    useEffect(() => {
-        fetchJobs(0, false);
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            fetchJobs(0, false);
+        }, [])
+    );
 
     const fetchJobs = async (pageNum, append = false) => {
         if (append) setLoadingMore(true);
@@ -92,13 +95,27 @@ export default function JobsScreen() {
                     </View>
                 )}
 
-                {item.imageUrls?.length > 0 && (
-                    <Image
-                        source={{ uri: item.imageUrls[0] }}
-                        style={[styles.jobImage, expired ? { opacity: 0.6 } : {}]}
-                        resizeMode="contain"
-                    />
-                )}
+                {item.imageUrls?.length > 0 && (() => {
+                    const imgUri = item.imageUrls[0];
+                    if (!imageDimensions[item.id]) {
+                        Image.getSize(imgUri, (w, h) => {
+                            setImageDimensions(prev => ({ ...prev, [item.id]: h / w }));
+                        }, () => {
+                            setImageDimensions(prev => ({ ...prev, [item.id]: 0.5625 }));
+                        });
+                    }
+                    return (
+                        <Image
+                            source={{ uri: imgUri }}
+                            style={[
+                                styles.jobImage,
+                                expired ? { opacity: 0.6 } : {},
+                                { aspectRatio: imageDimensions[item.id] ? (1 / imageDimensions[item.id]) : 1.77, height: undefined }
+                            ]}
+                            resizeMode="contain"
+                        />
+                    );
+                })()}
 
                 <View style={styles.cardContent}>
                     <Text style={[styles.title, expired && { color: '#9ca3af' }]} numberOfLines={2}>
@@ -150,7 +167,7 @@ export default function JobsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8 }}>
+                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8 }}>
                     <Ionicons name="chevron-back" size={28} color={colors.primary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Job Board</Text>
@@ -203,7 +220,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
         paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, zIndex: 10, elevation: 2
     },
     companyText: { fontSize: 11, fontFamily: 'Outfit_600SemiBold', color: colors.text },
-    jobImage: { width: '100%', height: 180, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f9fafb' },
+    jobImage: { width: '100%', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f9fafb' },
     cardContent: { padding: 16 },
     title: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 12 },
     detailsContainer: { gap: 8, marginBottom: 16 },

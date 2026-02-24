@@ -73,9 +73,6 @@ export default function CreatePostModal({ visible, onClose }) {
                                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                                     <Text style={styles.closeText}>Close</Text>
                                 </TouchableOpacity>
-                                <View style={styles.micContainer}>
-                                    <Ionicons name="mic" size={20} color="#fff" />
-                                </View>
                             </View>
 
                             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -166,14 +163,6 @@ const styles = StyleSheet.create({
     closeText: {
         color: '#047857',
         fontSize: 16, fontFamily: 'Outfit_400Regular',
-    },
-    micContainer: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#10b981',
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     scrollContent: {
         paddingBottom: 40,

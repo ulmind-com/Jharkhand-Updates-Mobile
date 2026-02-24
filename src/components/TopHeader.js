@@ -1,20 +1,59 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { View as MotiView } from 'moti';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import axios from 'axios';
 
 import { useLocation } from '../context/LocationContext';
+import { ThemeContext } from '../context/ThemeContext';
+
+const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
 export default function TopHeader() {
     const navigation = useNavigation();
+    const isFocused = useIsFocused();
+    const { isDarkMode, colors } = React.useContext(ThemeContext);
+    const styles = getStyles(colors, isDarkMode);
     const { selectedState, setLocation } = useLocation();
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [hasUnread, setHasUnread] = useState(false);
+
+    useEffect(() => {
+        const checkAuthAndNotifications = async () => {
+            const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+            setIsLoggedIn(!!token);
+
+            if (token) {
+                try {
+                    const res = await axios.get(`${BASE_URL}/notifications/recent?limit=1`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.data?.data?.length > 0) {
+                        const latestId = res.data.data[0].id;
+                        const storedIdStr = Platform.OS === 'web' ? localStorage.getItem('lastNotificationId') : await SecureStore.getItemAsync('lastNotificationId');
+                        const storedId = storedIdStr ? parseInt(storedIdStr, 10) : 0;
+                        if (latestId > storedId) {
+                            setHasUnread(true);
+                        } else {
+                            setHasUnread(false);
+                        }
+                    } else {
+                        setHasUnread(false);
+                    }
+                } catch (e) {
+                    console.log("Error checking notifications in TopHeader:", e);
+                }
+            }
+        };
+        checkAuthAndNotifications();
+    }, [isFocused]);
 
     const toggleLocation = () => {
-        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setLocation(selectedState === 'Jharkhand' ? 'Bihar' : 'Jharkhand');
         setDropdownOpen(false);
     };
@@ -25,12 +64,12 @@ export default function TopHeader() {
                 <TouchableOpacity
                     style={styles.locationSelector}
                     onPress={() => {
-                        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setDropdownOpen(!dropdownOpen);
                     }}
                 >
                     <Text style={styles.locationText}>{selectedState}</Text>
-                    <Ionicons name="chevron-down" size={16} color="#047857" style={{ marginLeft: 4 }} />
+                    <Ionicons name="chevron-down" size={16} color={colors.primary} style={{ marginLeft: 4 }} />
                 </TouchableOpacity>
 
                 {dropdownOpen && (
@@ -47,33 +86,47 @@ export default function TopHeader() {
             </View>
 
             <View style={styles.rightSection}>
-                <TouchableOpacity style={styles.iconButton} onPress={() => {
-                    if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    navigation.navigate('Search');
-                }}>
-                    <Ionicons name="search-outline" size={20} color="#047857" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.iconButton} onPress={() => {
-                    if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    navigation.navigate('UserProfile');
-                }}>
-                    <Ionicons name="person-outline" size={20} color="#047857" />
-                </TouchableOpacity>
+                {isLoggedIn && (
+                    <TouchableOpacity style={styles.iconButton} onPress={() => {
+                        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        navigation.navigate('Notifications');
+                    }}>
+                        <Ionicons name="notifications-outline" size={20} color="#047857" />
+                        {hasUnread && (
+                            <View style={styles.badge} />
+                        )}
+                    </TouchableOpacity>
+                )}
+                {isLoggedIn ? (
+                    <TouchableOpacity style={styles.iconButton} onPress={() => {
+                        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        navigation.navigate('UserProfile');
+                    }}>
+                        <Ionicons name="person-outline" size={20} color={colors.text} />
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity style={[styles.loginBtn, { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }]} onPress={() => {
+                        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        navigation.navigate('Login');
+                    }}>
+                        <Text style={{ color: '#fff', fontFamily: 'Outfit_600SemiBold', fontSize: 13 }}>Login</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         </View>
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors, isDarkMode) => StyleSheet.create({
     headerContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 16,
         paddingVertical: 12,
-        backgroundColor: '#fff',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: '#f3f4f6',
+        borderBottomColor: colors.border,
         zIndex: 10,
     },
     leftSection: {
@@ -86,14 +139,14 @@ const styles = StyleSheet.create({
     },
     locationText: {
         fontSize: 22, fontFamily: 'Outfit_400Regular',
-        color: '#1f2937',
+        color: colors.text,
         letterSpacing: -0.5,
     },
     dropdown: {
         position: 'absolute',
         top: 32,
         left: 0,
-        backgroundColor: '#fff',
+        backgroundColor: colors.surface,
         borderRadius: 8,
         padding: 8,
         shadowColor: '#000',
@@ -108,9 +161,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
     },
     dropdownText: {
-        fontSize: 16, fontFamily: 'Outfit_400Regular',
-        color: '#374151',
-        fontFamily: 'Outfit_600SemiBold',
+        fontSize: 16, fontFamily: 'Outfit_600SemiBold',
+        color: colors.text,
     },
     rightSection: {
         flexDirection: 'row',
@@ -122,10 +174,22 @@ const styles = StyleSheet.create({
         height: 36,
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: colors.border,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#fff',
+        backgroundColor: colors.surface,
+        position: 'relative',
+    },
+    badge: {
+        position: 'absolute',
+        top: 6,
+        right: 8,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#ef4444',
+        borderWidth: 1,
+        borderColor: '#fff',
     }
 });
 

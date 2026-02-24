@@ -9,6 +9,7 @@ import * as SecureStore from 'expo-secure-store';
 import Toast from 'react-native-toast-message';
 import axios from 'axios';
 import { Picker } from '@react-native-picker/picker';
+import { Audio } from 'expo-av';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
@@ -96,7 +97,24 @@ export default function CreateStateNewsScreen() {
 
             if (res.data.success) {
                 Toast.show({ type: 'success', text1: 'Success', text2: 'News posted successfully!' });
-                navigation.goBack();
+
+                try {
+                    const { sound } = await Audio.Sound.createAsync(
+                        require('../../assets/sounds/success.mp3'),
+                        { shouldPlay: true }
+                    );
+                    sound.setOnPlaybackStatusUpdate(status => {
+                        if (status.didJustFinish) {
+                            sound.unloadAsync();
+                        }
+                    });
+                } catch (audioErr) {
+                    console.log("Audio play error", audioErr);
+                }
+
+                setTimeout(() => {
+                    navigation.navigate('Main', { screen: 'State News' });
+                }, 1000);
             }
         } catch (error) {
             console.error("News post error:", error);
@@ -109,7 +127,7 @@ export default function CreateStateNewsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#047857" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Post State News</Text>
@@ -172,7 +190,16 @@ export default function CreateStateNewsScreen() {
                         </View>
                     </View>
 
-                    <TouchableOpacity style={[styles.submitBtn, loading && { opacity: 0.7 }]} onPress={handleSubmit} disabled={loading}>
+                    <TouchableOpacity
+                        style={[styles.submitBtn, loading && { opacity: 0.7 }]}
+                        onPress={() => {
+                            if (Platform.OS !== 'web') {
+                                Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            }
+                            handleSubmit();
+                        }}
+                        disabled={loading}
+                    >
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Publish News</Text>}
                     </TouchableOpacity>
 

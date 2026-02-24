@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { View as MotiView } from 'moti';
 import { EventSkeleton } from '../components/Skeletons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ThemeContext } from '../context/ThemeContext';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -19,10 +19,13 @@ export default function EventsScreen() {
     const styles = getStyles(colors, isDarkMode);
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [imageDimensions, setImageDimensions] = useState({});
 
-    useEffect(() => {
-        fetchEvents();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            fetchEvents();
+        }, [])
+    );
 
     const fetchEvents = async () => {
         try {
@@ -71,14 +74,28 @@ export default function EventsScreen() {
                     </View>
                 )}
 
-                {item.imageUrls?.length > 0 ? (
-                    <Image
-                        source={{ uri: item.imageUrls[0] }}
-                        style={[styles.eventImage, expired ? { opacity: 0.6 } : {}]}
-                        resizeMode="cover"
-                    />
-                ) : (
-                    <View style={[styles.eventImage, styles.placeholderImage]}>
+                {item.imageUrls?.length > 0 ? (() => {
+                    const imgUri = item.imageUrls[0];
+                    if (!imageDimensions[item.id]) {
+                        Image.getSize(imgUri, (w, h) => {
+                            setImageDimensions(prev => ({ ...prev, [item.id]: h / w }));
+                        }, () => {
+                            setImageDimensions(prev => ({ ...prev, [item.id]: 0.5625 }));
+                        });
+                    }
+                    return (
+                        <Image
+                            source={{ uri: imgUri }}
+                            style={[
+                                styles.eventImage,
+                                expired ? { opacity: 0.6 } : {},
+                                { aspectRatio: imageDimensions[item.id] ? (1 / imageDimensions[item.id]) : 1.77, height: undefined }
+                            ]}
+                            resizeMode="contain"
+                        />
+                    );
+                })() : (
+                    <View style={[styles.eventImage, styles.placeholderImage, { height: 200 }]}>
                         <Ionicons name="calendar" size={48} color="rgba(255,255,255,0.5)" />
                     </View>
                 )}
@@ -141,7 +158,7 @@ export default function EventsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8 }}>
+                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8 }}>
                     <Ionicons name="chevron-back" size={28} color="#9333ea" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Discover Events</Text>
@@ -195,7 +212,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
         borderRadius: 8, borderWidth: 2, borderColor: '#fca5a5'
     },
     expiredText: { color: '#fff', fontSize: 13, fontFamily: 'Outfit_700Bold', letterSpacing: 1 },
-    eventImage: { width: '100%', height: 200, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6' },
+    eventImage: { width: '100%', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6' },
     placeholderImage: { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#a855f7', alignItems: 'center', justifyContent: 'center' },
     dateBadge: {
         position: 'absolute', top: 16, left: 16, borderRadius: 20, overflow: 'hidden', elevation: 5, backgroundColor: colors.surface

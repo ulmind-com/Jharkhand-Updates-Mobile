@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Alert, KeyboardAvoidingView } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Alert, KeyboardAvoidingView, Vibration } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { View as MotiView } from 'moti';
 import ImageViewing from '../components/ImageViewer';
 import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
+import { Audio } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -224,13 +225,16 @@ export default function StateNewsDetailsScreen() {
 
     const fetchNewsDetails = async () => {
         try {
+            const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+            const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+
             // Using a generic GET or specific to state-news
-            const res = await axios.get(`${BASE_URL}/state-news/details/${newsId}`);
+            const res = await axios.get(`${BASE_URL}/state-news/details/${newsId}`, config);
             if (res.data.success) {
                 setNews(res.data.data);
             } else {
                 // Fallback in case endpoint is just /state-news/{id}
-                const fallbackRes = await axios.get(`${BASE_URL}/state-news/${newsId}`);
+                const fallbackRes = await axios.get(`${BASE_URL}/state-news/${newsId}`, config);
                 if (fallbackRes.data.success) {
                     setNews(fallbackRes.data.data);
                 }
@@ -280,6 +284,17 @@ export default function StateNewsDetailsScreen() {
                 }
                 await axios.post(`${BASE_URL}/comments/state-news/${newsId}`, payload, { headers });
                 setReplyingTo(null);
+
+                try {
+                    const { sound } = await Audio.Sound.createAsync(
+                        { uri: 'https://actions.google.com/sounds/v1/water/wood_tap_hollow.ogg' },
+                        { shouldPlay: true }
+                    );
+                    sound.setOnPlaybackStatusUpdate(status => {
+                        if (status.didJustFinish) sound.unloadAsync();
+                    });
+                } catch (e) { console.log(e); }
+
                 Toast.show({ type: 'success', text1: 'Comment added!' });
             }
 
@@ -366,12 +381,13 @@ export default function StateNewsDetailsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
                 style={{ flex: 1 }}
             >
                 {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={colors.primary} />
                         <Text style={styles.backText}>Back</Text>
                     </TouchableOpacity>
@@ -497,7 +513,23 @@ export default function StateNewsDetailsScreen() {
                         />
                         <TouchableOpacity
                             style={[styles.sendButton, !commentText.trim() && { opacity: 0.5 }]}
-                            onPress={handleAddComment}
+                            onPress={async () => {
+                                if (Platform.OS !== 'web') {
+                                    Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                }
+                                try {
+                                    const { sound } = await Audio.Sound.createAsync(
+                                        require('../../assets/sounds/pop.mp3'),
+                                        { shouldPlay: true }
+                                    );
+                                    sound.setOnPlaybackStatusUpdate(status => {
+                                        if (status.didJustFinish) sound.unloadAsync();
+                                    });
+                                } catch (e) {
+                                    console.log("Audio play error", e);
+                                }
+                                handleAddComment();
+                            }}
                             disabled={!commentText.trim()}
                         >
                             <Ionicons name={editingComment ? "checkmark" : "send"} size={20} color={isDarkMode ? '#000' : '#fff'} />
@@ -583,6 +615,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     inputField: { flex: 1, backgroundColor: colors.surfaceDeeper, color: colors.text, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, maxHeight: 100, fontSize: 15, fontFamily: 'Outfit_400Regular' },
     sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: 12, marginBottom: 2 },
 });
+
 
 
 

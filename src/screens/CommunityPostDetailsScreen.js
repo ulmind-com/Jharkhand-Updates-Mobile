@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Alert, KeyboardAvoidingView } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Alert, KeyboardAvoidingView, Vibration } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { View as MotiView } from 'moti';
 import ImageViewing from '../components/ImageViewer';
 import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
+import { Audio } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -199,6 +200,7 @@ export default function CommunityPostDetailsScreen() {
     const [currentUser, setCurrentUser] = useState(null);
     const [imageRatio, setImageRatio] = useState(null);
     const [isImageViewVisible, setIsImageViewVisible] = useState(false);
+    const [processingAdmin, setProcessingAdmin] = useState(false);
 
     useEffect(() => {
         const fetchCurrentUser = async () => {
@@ -238,6 +240,22 @@ export default function CommunityPostDetailsScreen() {
             navigation.goBack();
         } finally {
             setLoading(false);
+        }
+    };
+
+    
+    const handleAdminAction = async (action) => {
+        try {
+            setProcessingAdmin(true);
+            const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+            await axios.post(`${BASE_URL}/community/${postId}/${action}`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            Toast.show({ type: 'success', text1: 'Success', text2: `Post ${action}d successfully` });
+            navigation.goBack();
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Error', text2: `Failed to ${action} post` });
+            setProcessingAdmin(false);
         }
     };
 
@@ -362,12 +380,13 @@ export default function CommunityPostDetailsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
                 style={{ flex: 1 }}
             >
                 {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Post</Text>
@@ -457,7 +476,23 @@ export default function CommunityPostDetailsScreen() {
                         />
                         <TouchableOpacity
                             style={[styles.sendButton, !commentText.trim() && { opacity: 0.5 }]}
-                            onPress={handleAddComment}
+                            onPress={async () => {
+                                if (Platform.OS !== 'web') {
+                                    Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                }
+                                try {
+                                    const { sound } = await Audio.Sound.createAsync(
+                                        require('../../assets/sounds/pop.mp3'),
+                                        { shouldPlay: true }
+                                    );
+                                    sound.setOnPlaybackStatusUpdate(status => {
+                                        if (status.didJustFinish) sound.unloadAsync();
+                                    });
+                                } catch (e) {
+                                    console.log("Audio play error", e);
+                                }
+                                handleAddComment();
+                            }}
                             disabled={!commentText.trim()}
                         >
                             <Ionicons name={editingComment ? "checkmark" : "send"} size={20} color={isDarkMode ? '#000' : '#fff'} />

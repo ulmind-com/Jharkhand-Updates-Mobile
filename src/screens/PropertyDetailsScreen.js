@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Modal, TextInput, Platform, Linking, FlatList } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Modal, TextInput, Platform, Linking, FlatList, Share } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +39,8 @@ export default function PropertyDetailsScreen() {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [inquiryLoading, setInquiryLoading] = useState(false);
     const [hasClickedButton, setHasClickedButton] = useState(false);
+
+    const [processingAdmin, setProcessingAdmin] = useState(false);
 
     useEffect(() => {
         fetchPropertyDetails();
@@ -80,6 +82,21 @@ export default function PropertyDetailsScreen() {
         }
     };
 
+    const handleAdminAction = async (action) => {
+        try {
+            setProcessingAdmin(true);
+            const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+            await axios.post(`${BASE_URL}/properties/${propertyId}/${action}`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            Toast.show({ type: 'success', text1: 'Success', text2: `Property ${action}d successfully` });
+            navigation.goBack();
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Error', text2: `Failed to ${action} property` });
+            setProcessingAdmin(false);
+        }
+    };
+
     const submitInquiry = async () => {
         const phoneRegex = /^[6-9]\d{9}$/;
         if (!phoneRegex.test(phoneNumber)) {
@@ -115,6 +132,19 @@ export default function PropertyDetailsScreen() {
 
     if (!property) return null;
 
+    const handleShare = async () => {
+        try {
+            const propertyUrl = `https://jharkhandbiharupdates.com/properties/${propertyId}`;
+            await Share.share({
+                message: `Check out this property on InYourArea: ${property.title}\n\n${propertyUrl}`,
+                title: property.title,
+                url: propertyUrl // used for iOS
+            });
+        } catch (error) {
+            console.log("Error sharing property:", error.message);
+        }
+    };
+
     const formatPrice = (price) => {
         if (!price) return "N/A";
         const num = parseFloat(price);
@@ -135,11 +165,11 @@ export default function PropertyDetailsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
+                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle} numberOfLines={1}>Property Details</Text>
-                <TouchableOpacity style={styles.shareButton} onPress={() => { }}>
+                <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
                     <Ionicons name="share-social-outline" size={22} color={colors.text} />
                 </TouchableOpacity>
             </View>
@@ -154,9 +184,6 @@ export default function PropertyDetailsScreen() {
                         <Text style={styles.locationTextMain}>{formatAddress()}</Text>
                     </View>
                     <View style={styles.statsRow}>
-                        <Ionicons name="eye-outline" size={14} color={colors.textDim} />
-                        <Text style={styles.statsText}>{property.viewCount || 0} views</Text>
-                        <View style={{ width: 16 }} />
                         <Ionicons name="calendar-outline" size={14} color={colors.textDim} />
                         <Text style={styles.statsText}>Posted {formatPropertyDate(property.createdAt)}</Text>
                     </View>
@@ -372,9 +399,28 @@ export default function PropertyDetailsScreen() {
             </ScrollView>
 
             <View style={styles.bottomBar}>
-                <TouchableOpacity style={styles.contactBtn} onPress={handleGetInTouch}>
-                    <Text style={styles.contactBtnText}>Get In Touch</Text>
-                </TouchableOpacity>
+                {property.status === 'PENDING' ? (
+                    <View style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
+                        <TouchableOpacity
+                            style={[styles.contactBtn, { flex: 1, backgroundColor: '#10b981' }]}
+                            onPress={() => handleAdminAction('approve')}
+                            disabled={processingAdmin}
+                        >
+                            {processingAdmin ? <ActivityIndicator color="#fff" /> : <Text style={styles.contactBtnText}>Approve</Text>}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.contactBtn, { flex: 1, backgroundColor: '#ef4444' }]}
+                            onPress={() => handleAdminAction('reject')}
+                            disabled={processingAdmin}
+                        >
+                            {processingAdmin ? <ActivityIndicator color="#fff" /> : <Text style={styles.contactBtnText}>Reject</Text>}
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <TouchableOpacity style={styles.contactBtn} onPress={handleGetInTouch}>
+                        <Text style={styles.contactBtnText}>Get In Touch</Text>
+                    </TouchableOpacity>
+                )}
             </View>
 
             {/* Inquiry Modal */}

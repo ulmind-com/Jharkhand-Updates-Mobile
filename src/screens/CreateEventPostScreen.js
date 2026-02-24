@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 import Toast from 'react-native-toast-message';
 import axios from 'axios';
+import { Audio } from 'expo-av';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
@@ -110,8 +111,26 @@ export default function CreateEventPostScreen() {
             });
 
             if (res.data.success) {
+                if (Platform.OS !== 'web') {
+                    Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
                 Toast.show({ type: 'success', text1: 'Success', text2: 'Event created successfully!' });
-                navigation.goBack();
+
+                try {
+                    const { sound } = await Audio.Sound.createAsync(
+                        require('../../assets/sounds/success.mp3'),
+                        { shouldPlay: true }
+                    );
+                    sound.setOnPlaybackStatusUpdate(status => {
+                        if (status.didJustFinish) sound.unloadAsync();
+                    });
+                } catch (audioErr) {
+                    console.log("Audio play error", audioErr);
+                }
+
+                setTimeout(() => {
+                    navigation.navigate('Events');
+                }, 1000);
             }
         } catch (error) {
             console.error("Event creation error:", error);
@@ -124,7 +143,7 @@ export default function CreateEventPostScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#047857" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Create Event</Text>
@@ -195,7 +214,14 @@ export default function CreateEventPostScreen() {
                         {date && endDate && <Text style={{ fontSize: 12, fontFamily: 'Outfit_400Regular', color: '#10b981', marginTop: 4 }}>Event Duration: {date} to {endDate}</Text>}
                     </View>
 
-                    <TouchableOpacity style={[styles.submitBtn, loading && { opacity: 0.7 }]} onPress={handleSubmit} disabled={loading}>
+                    <TouchableOpacity
+                        style={[styles.submitBtn, loading && { opacity: 0.7 }]}
+                        onPress={() => {
+                            Platform.OS === 'android' ? require('react-native').Vibration.vibrate(120) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            handleSubmit();
+                        }}
+                        disabled={loading}
+                    >
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Create Event</Text>}
                     </TouchableOpacity>
 

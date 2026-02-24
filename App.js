@@ -7,6 +7,7 @@ import { NavigationContainer, createNavigationContainerRef } from '@react-naviga
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold, Outfit_700Bold } from '@expo-google-fonts/outfit';
+import { Audio } from 'expo-av';
 import HomeScreen from './src/screens/HomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import TabNavigator from './src/navigation/TabNavigator';
@@ -22,6 +23,7 @@ import CreateStateNewsScreen from './src/screens/CreateStateNewsScreen';
 import CreatePromotionScreen from './src/screens/CreatePromotionScreen';
 import SearchScreen from './src/screens/SearchScreen';
 import MyPostsScreen from './src/screens/MyPostsScreen';
+import MyPostsListScreen from './src/screens/MyPostsListScreen';
 import JobDetailsScreen from './src/screens/JobDetailsScreen';
 import EventDetailsScreen from './src/screens/EventDetailsScreen';
 import PropertyDetailsScreen from './src/screens/PropertyDetailsScreen';
@@ -29,6 +31,13 @@ import EventsScreen from './src/screens/EventsScreen';
 import PropertiesScreen from './src/screens/PropertiesScreen';
 import PromotionsScreen from './src/screens/PromotionsScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
+import EmailServiceScreen from './src/screens/EmailServiceScreen';
+import LiveSportsScreen from './src/screens/LiveSportsScreen';
+import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
+import PendingApprovalsScreen from './src/screens/PendingApprovalsScreen';
+import PendingCategoryListScreen from './src/screens/PendingCategoryListScreen';
+import ComingSoonAdminScreen from './src/screens/ComingSoonAdminScreen';
 import { LocationProvider } from './src/context/LocationContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 
@@ -59,25 +68,37 @@ export default function App() {
         }
       `;
       document.head.appendChild(style);
-      return;
+    } else {
+      // Native Audio Configuration to allow sounds over calls and ignore silent switches
+      try {
+        Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+          staysActiveInBackground: true,
+        });
+      } catch (e) {
+        console.log("Audio mode configuration failed:", e);
+      }
     }
 
     // OneSignal Debug & Initialization
-    // We are commenting this out for Expo Go testing, as OneSignal requires a custom dev client
-    // and missing native modules throw JS exceptions that can freeze Android's touch responder.
-    /*
-    OneSignal.Debug.setLogLevel(LogLevel.Verbose);
-    OneSignal.initialize("8f6aeaec-1885-4245-b351-0885c4cb7312");
-    OneSignal.Notifications.requestPermission(true);
+    try {
+      OneSignal.Debug.setLogLevel(LogLevel.Verbose);
+      OneSignal.initialize("8f6aeaec-1885-4245-b351-0885c4cb7312");
+      OneSignal.Notifications.requestPermission(true);
 
-    OneSignal.Notifications.addEventListener('click', (event) => {
-      console.log('OneSignal: notification clicked:', event);
-      const data = event?.notification?.additionalData;
-      if (data && data.targetScreen && navigationRef.isReady()) {
-        navigationRef.navigate(data.targetScreen, data.params || {});
-      }
-    });
-    */
+      OneSignal.Notifications.addEventListener('click', (event) => {
+        console.log('OneSignal: notification clicked:', event);
+        const data = event?.notification?.additionalData;
+        if (data && data.targetScreen && navigationRef.isReady()) {
+          navigationRef.navigate(data.targetScreen, data.params || {});
+        }
+      });
+    } catch (e) {
+      console.log("OneSignal native module not found (Likely running in Expo Go without a custom native build). Skipping OneSignal initialization.");
+    }
   }, []);
 
   if (!fontsLoaded) {
@@ -103,16 +124,24 @@ export default function App() {
               <Stack.Screen name="JobDetails" component={JobDetailsScreen} />
               <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
               <Stack.Screen name="PropertyDetails" component={PropertyDetailsScreen} />
+              <Stack.Screen name="StateNewsDetails" component={StateNewsDetailsScreen} />
+              <Stack.Screen name="Search" component={SearchScreen} />
+              <Stack.Screen name="MyPosts" component={MyPostsScreen} />
+              <Stack.Screen name="MyPostsList" component={MyPostsListScreen} />
+              <Stack.Screen name="History" component={HistoryScreen} />
+              <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              <Stack.Screen name="EmailService" component={EmailServiceScreen} />
+              <Stack.Screen name="LiveSports" component={LiveSportsScreen} />
+              <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
+              <Stack.Screen name="PendingApprovals" component={PendingApprovalsScreen} />
+              <Stack.Screen name="PendingCategoryList" component={PendingCategoryListScreen} />
+              <Stack.Screen name="ComingSoonAdmin" component={ComingSoonAdminScreen} />
               <Stack.Screen name="CreateCommunityPost" component={CreateCommunityPostScreen} />
               <Stack.Screen name="CreateJobPost" component={CreateJobPostScreen} />
               <Stack.Screen name="CreateEventPost" component={CreateEventPostScreen} />
               <Stack.Screen name="CreatePropertyListing" component={CreatePropertyListingScreen} />
-              <Stack.Screen name="CreatePromotion" component={CreatePromotionScreen} />
               <Stack.Screen name="CreateStateNews" component={CreateStateNewsScreen} />
-              <Stack.Screen name="StateNewsDetails" component={StateNewsDetailsScreen} />
-              <Stack.Screen name="Search" component={SearchScreen} />
-              <Stack.Screen name="MyPosts" component={MyPostsScreen} />
-              <Stack.Screen name="History" component={HistoryScreen} />
+              <Stack.Screen name="CreatePromotion" component={CreatePromotionScreen} />
             </Stack.Navigator>
           </NavigationContainer>
         </LocationProvider>

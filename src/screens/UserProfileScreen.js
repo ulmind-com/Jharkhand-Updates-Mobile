@@ -186,7 +186,7 @@ export default function UserProfileScreen() {
             await SecureStore.deleteItemAsync('userName');
         }
 
-        if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         Toast.show({ type: 'success', text1: 'Logged out successfully' });
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
@@ -208,7 +208,7 @@ export default function UserProfileScreen() {
             <SafeAreaView style={styles.container} edges={['top']}>
                 <View style={styles.header}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.logoutButton}>
+                        <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.logoutButton}>
                             <Ionicons name="arrow-back" size={24} color={colors.text} />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>My Profile</Text>
@@ -228,7 +228,7 @@ export default function UserProfileScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.logoutButton}>
+                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.logoutButton}>
                         <Ionicons name="arrow-back" size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>My Profile</Text>
@@ -280,20 +280,28 @@ export default function UserProfileScreen() {
                         transition={{ type: 'timing', duration: 400, delay: 100 }}
                     >
                         <View style={styles.statBox}>
-                            <Text style={styles.statValue}>{stats.totalCommunityPosts}</Text>
+                            <Text style={styles.statValue}>{stats.totalCommunityPosts || 0}</Text>
                             <Text style={styles.statLabel}>Posts</Text>
                         </View>
                         <View style={styles.statBox}>
-                            <Text style={styles.statValue}>{stats.totalEvents}</Text>
+                            <Text style={styles.statValue}>{stats.totalEvents || 0}</Text>
                             <Text style={styles.statLabel}>Events</Text>
                         </View>
                         <View style={styles.statBox}>
-                            <Text style={styles.statValue}>{stats.totalJobs}</Text>
+                            <Text style={styles.statValue}>{stats.totalJobs || 0}</Text>
                             <Text style={styles.statLabel}>Jobs</Text>
                         </View>
                         <View style={styles.statBox}>
                             <Text style={styles.statValue}>{stats.totalProperties || 0}</Text>
                             <Text style={styles.statLabel}>Properties</Text>
+                        </View>
+                        <View style={styles.statBox}>
+                            <Text style={styles.statValue}>{stats.totalStateNews || 0}</Text>
+                            <Text style={styles.statLabel}>News</Text>
+                        </View>
+                        <View style={styles.statBox}>
+                            <Text style={styles.statValue}>{stats.totalContent || 0}</Text>
+                            <Text style={styles.statLabel}>Total</Text>
                         </View>
                     </MotiView>
                 )}
@@ -324,6 +332,16 @@ export default function UserProfileScreen() {
                         <Text style={styles.menuText}>Account Settings</Text>
                         <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
                     </TouchableOpacity>
+
+                    {profile?.role === 'ADMIN' && (
+                        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('AdminDashboard')}>
+                            <View style={[styles.menuIconBox, { backgroundColor: '#fef3c7' }]}>
+                                <Ionicons name="shield-checkmark" size={20} color="#d97706" />
+                            </View>
+                            <Text style={styles.menuText}>Admin Mode</Text>
+                            <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+                        </TouchableOpacity>
+                    )}
 
                     <View style={styles.menuItem}>
                         <View style={[styles.menuIconBox, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f1f5f9' }]}>
@@ -465,14 +483,14 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
 
     sectionTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 12, marginLeft: 4 },
 
-    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 28 },
+    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginBottom: 24 },
     statBox: {
-        flex: 1, minWidth: '45%', backgroundColor: colors.surface, padding: 16, borderRadius: 20,
-        alignItems: 'center', elevation: 2, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 1 }, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 4,
-        borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border
+        width: '31%', backgroundColor: colors.surface, paddingVertical: 14, borderRadius: 14,
+        alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: isDarkMode ? 0.2 : 0.04, shadowRadius: 3,
+        borderWidth: 1, borderColor: isDarkMode ? colors.border : '#e2e8f0'
     },
-    statValue: { fontSize: 24, fontFamily: 'Outfit_700Bold', color: colors.primary, marginBottom: 4 },
-    statLabel: { fontSize: 13, fontFamily: 'Outfit_400Regular', color: colors.textDim, fontFamily: 'Outfit_500Medium' },
+    statValue: { fontSize: 20, fontFamily: 'Outfit_700Bold', color: '#10b981', marginBottom: 2 },
+    statLabel: { fontSize: 11, fontFamily: 'Outfit_500Medium', color: colors.textDim },
 
     menuContainer: { backgroundColor: colors.surface, borderRadius: 24, padding: 8, elevation: 2, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 1 }, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 4, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
     menuItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },

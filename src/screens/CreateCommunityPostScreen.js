@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, KeyboardAvoidingView, Platform, ActivityIndicator, Vibration } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -8,7 +8,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 import Toast from 'react-native-toast-message';
 import axios from 'axios';
-import { MotiView } from 'moti';
+import { View as MotiView } from 'moti';
+import { Audio } from 'expo-av';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
@@ -99,14 +100,31 @@ export default function CreateCommunityPostScreen() {
             });
 
             if (res.data.success) {
-                Toast.show({ type: 'success', text1: 'Success', text2: 'Community post created successfully!' });
-
-                // Usually we'd try to go back and refresh the list
-                if (navigation.canGoBack()) {
-                    navigation.goBack();
-                } else {
-                    navigation.navigate('Main', { screen: 'Community' });
+                if (Platform.OS !== 'web') {
+                    Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 }
+                const isPending = res.data.data && res.data.data.status === 'PENDING';
+                Toast.show({ 
+                    type: 'success', 
+                    text1: isPending ? 'Pending Approval' : 'Success', 
+                    text2: isPending ? 'Your post is waiting for admin approval.' : 'Community post created successfully!' 
+                });
+
+                try {
+                    const { sound } = await Audio.Sound.createAsync(
+                        require('../../assets/sounds/success.mp3'),
+                        { shouldPlay: true }
+                    );
+                    sound.setOnPlaybackStatusUpdate(status => {
+                        if (status.didJustFinish) sound.unloadAsync();
+                    });
+                } catch (audioErr) {
+                    console.log("Audio play error", audioErr);
+                }
+
+                setTimeout(() => {
+                    navigation.navigate('Main', { screen: 'Community' });
+                }, 1000);
             }
         } catch (error) {
             console.error("Post creation error:", error);
@@ -119,7 +137,7 @@ export default function CreateCommunityPostScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(80) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#047857" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Create Community Post</Text>
@@ -188,7 +206,12 @@ export default function CreateCommunityPostScreen() {
 
                     <TouchableOpacity
                         style={[styles.submitBtn, loading && { opacity: 0.7 }]}
-                        onPress={handleSubmit}
+                        onPress={() => {
+                            if (Platform.OS !== 'web') {
+                                Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            }
+                            handleSubmit();
+                        }}
                         disabled={loading}
                     >
                         {loading ? (
