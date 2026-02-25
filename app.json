@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.inyourarea.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "InYourArea requires your location to show relevant local news, community events, properties, and weather in your surrounding area.",
-        "NSPhotoLibraryUsageDescription": "InYourArea requires access to your photo library to attach media to your community posts, job listings, properties, and events."
+        "NSPhotoLibraryUsageDescription": "InYourArea requires access to your photo library to attach media to your community posts, job listings, properties, and events.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -47,6 +48,28 @@
           "mode": "development"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "OneSignalNotificationServiceExtension",
+                  "bundleIdentifier": "com.inyourarea.app.OneSignalNotificationServiceExtension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.inyourarea.app.onesignal"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "67857840-15cb-4631-85ba-5993161a402a"
+      }
+    }
   }
 }
