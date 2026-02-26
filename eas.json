@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
     "cli": {
         "version": ">= 12.0.0",
         "appVersionSource": "remote"
@@ -30,4 +31,28 @@
     "submit": {
         "production": {}
     }
+=======
+  "cli": {
+    "version": ">= 0.52.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal"
+    },
+    "production": {}
+  },
+  "submit": {
+    "production": {}
+  }
+>>>>>>> 3557da6429e92bbf1a983336d65816d05e8ca8a0
 }

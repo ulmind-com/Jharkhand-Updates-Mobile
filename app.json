@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.inyourarea.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "InYourArea requires your location to show relevant local news, community events, properties, and weather in your surrounding area.",
-        "NSPhotoLibraryUsageDescription": "InYourArea requires access to your photo library to attach media to your community posts, job listings, properties, and events."
+        "NSPhotoLibraryUsageDescription": "InYourArea requires access to your photo library to attach media to your community posts, job listings, properties, and events.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -84,7 +85,11 @@
             }
           }
         },
+<<<<<<< HEAD
         "projectId": "f8eecad2-168a-44bd-ae48-b7f9a217f225"
+=======
+        "projectId": "67857840-15cb-4631-85ba-5993161a402a"
+>>>>>>> 3557da6429e92bbf1a983336d65816d05e8ca8a0
       }
     }
   }
