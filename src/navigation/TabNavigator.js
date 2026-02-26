@@ -1,5 +1,5 @@
 import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Vibration, createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { View as MotiView } from 'moti';
 import * as Haptics from 'expo-haptics';
@@ -75,12 +75,12 @@ export default function TabNavigator() {
                 <Tab.Screen
                     name="Community"
                     component={CommunityScreen}
-                    listeners={{ tabPress: () => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+                    listeners={{ tabPress: () => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                 />
                 <Tab.Screen
                     name="State News"
                     component={NewsScreen}
-                    listeners={{ tabPress: () => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+                    listeners={{ tabPress: () => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                 />
 
                 <Tab.Screen
@@ -92,7 +92,7 @@ export default function TabNavigator() {
                             <TouchableOpacity
                                 activeOpacity={0.9}
                                 onPress={() => {
-                                    if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                     setCreateModalVisible(true);
                                 }}
                                 style={{
@@ -132,13 +132,13 @@ export default function TabNavigator() {
                 <Tab.Screen
                     name="Jobs"
                     component={JobsScreen}
-                    listeners={{ tabPress: () => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+                    listeners={{ tabPress: () => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                 />
 
                 <Tab.Screen
                     name="More"
                     component={MoreScreen}
-                    listeners={{ tabPress: () => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
+                    listeners={{ tabPress: () => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                 />
             </Tab.Navigator>
 

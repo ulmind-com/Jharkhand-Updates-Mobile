@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import {
+import { Vibration,
     View, Text, TextInput, TouchableOpacity, StyleSheet,
     ScrollView, ActivityIndicator, Dimensions, Platform, KeyboardAvoidingView, Image
 } from 'react-native';
@@ -86,7 +86,7 @@ export default function LoginScreen() {
 
     const triggerHaptic = () => {
         if (Platform.OS !== 'web') {
-            Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
     };
 

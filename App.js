@@ -38,8 +38,10 @@ import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
 import PendingApprovalsScreen from './src/screens/PendingApprovalsScreen';
 import PendingCategoryListScreen from './src/screens/PendingCategoryListScreen';
 import ComingSoonAdminScreen from './src/screens/ComingSoonAdminScreen';
+import VendorDashboardScreen from './src/screens/VendorDashboardScreen';
 import { LocationProvider } from './src/context/LocationContext';
 import { ThemeProvider } from './src/context/ThemeContext';
+import { setupNotificationChannel } from './src/services/ScoreNotificationService';
 
 const Stack = createNativeStackNavigator();
 export const navigationRef = createNavigationContainerRef();
@@ -99,6 +101,9 @@ export default function App() {
     } catch (e) {
       console.log("OneSignal native module not found (Likely running in Expo Go without a custom native build). Skipping OneSignal initialization.");
     }
+
+    // Initialize Score Notification Channel for Android
+    setupNotificationChannel();
   }, []);
 
   if (!fontsLoaded) {
@@ -136,6 +141,7 @@ export default function App() {
               <Stack.Screen name="PendingApprovals" component={PendingApprovalsScreen} />
               <Stack.Screen name="PendingCategoryList" component={PendingCategoryListScreen} />
               <Stack.Screen name="ComingSoonAdmin" component={ComingSoonAdminScreen} />
+              <Stack.Screen name="VendorDashboard" component={VendorDashboardScreen} />
               <Stack.Screen name="CreateCommunityPost" component={CreateCommunityPostScreen} />
               <Stack.Screen name="CreateJobPost" component={CreateJobPostScreen} />
               <Stack.Screen name="CreateEventPost" component={CreateEventPostScreen} />

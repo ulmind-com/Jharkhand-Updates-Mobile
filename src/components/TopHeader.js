@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { Vibration, View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { View as MotiView } from 'moti';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
@@ -53,7 +53,7 @@ export default function TopHeader() {
     }, [isFocused]);
 
     const toggleLocation = () => {
-        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setLocation(selectedState === 'Jharkhand' ? 'Bihar' : 'Jharkhand');
         setDropdownOpen(false);
     };
@@ -64,7 +64,7 @@ export default function TopHeader() {
                 <TouchableOpacity
                     style={styles.locationSelector}
                     onPress={() => {
-                        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setDropdownOpen(!dropdownOpen);
                     }}
                 >
@@ -88,7 +88,7 @@ export default function TopHeader() {
             <View style={styles.rightSection}>
                 {isLoggedIn && (
                     <TouchableOpacity style={styles.iconButton} onPress={() => {
-                        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         navigation.navigate('Notifications');
                     }}>
                         <Ionicons name="notifications-outline" size={20} color="#047857" />
@@ -99,14 +99,14 @@ export default function TopHeader() {
                 )}
                 {isLoggedIn ? (
                     <TouchableOpacity style={styles.iconButton} onPress={() => {
-                        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         navigation.navigate('UserProfile');
                     }}>
                         <Ionicons name="person-outline" size={20} color={colors.text} />
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity style={[styles.loginBtn, { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }]} onPress={() => {
-                        if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         navigation.navigate('Login');
                     }}>
                         <Text style={{ color: '#fff', fontFamily: 'Outfit_600SemiBold', fontSize: 13 }}>Login</Text>

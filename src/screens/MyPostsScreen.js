@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { Vibration, View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -65,7 +65,7 @@ export default function MyPostsScreen() {
 
     const handleSelectCategory = (category) => {
         if (Platform.OS !== 'web') {
-            Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
         navigation.navigate('MyPostsList', { categoryId: category.id, categoryLabel: category.label });
     };
@@ -74,7 +74,7 @@ export default function MyPostsScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => {
-                    if (Platform.OS !== 'web') { Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+                    if (Platform.OS !== 'web') { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
                     navigation.goBack();
                 }}>
                     <Ionicons name="arrow-back" size={24} color={colors.text} />

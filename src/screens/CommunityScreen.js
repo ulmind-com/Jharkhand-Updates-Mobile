@@ -220,7 +220,7 @@ export default function CommunityScreen() {
                                 style={[styles.inlineSendButton, !(commentText[item.id] || "").trim() && { opacity: 0.5 }]}
                                 onPress={async () => {
                                     if (Platform.OS !== 'web') {
-                                        Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                     }
                                     try {
                                         const { sound } = await Audio.Sound.createAsync(

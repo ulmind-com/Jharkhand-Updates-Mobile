@@ -266,7 +266,14 @@ export default function CommunityPostDetailsScreen() {
 
             const res = await axios.get(`${BASE_URL}/comments/community-posts/${postId}`, { headers });
             if (res.data.success) {
-                setComments(res.data.data);
+                let fetchedComments = res.data.data || [];
+                fetchedComments.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                fetchedComments.forEach(cmt => {
+                    if (cmt.replies) {
+                       cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                    }
+                });
+                setComments(fetchedComments);
             }
         } catch (error) {
             console.error("Error fetching comments:", error);
@@ -299,7 +306,19 @@ export default function CommunityPostDetailsScreen() {
             }
 
             setCommentText("");
-            fetchComments();
+            await fetchComments();
+
+            try {
+                const { sound } = await Audio.Sound.createAsync(
+                    require('../../assets/sounds/pop.mp3'),
+                    { shouldPlay: true }
+                );
+                sound.setOnPlaybackStatusUpdate(status => {
+                    if (status.didJustFinish) sound.unloadAsync();
+                });
+            } catch (e) {
+                console.log("Audio play error", e);
+            }
         } catch (error) {
             console.error("Error adding/editing comment:", error);
             Toast.show({ type: 'error', text1: 'Action failed' });
@@ -386,7 +405,7 @@ export default function CommunityPostDetailsScreen() {
             >
                 {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Post</Text>
@@ -478,19 +497,9 @@ export default function CommunityPostDetailsScreen() {
                             style={[styles.sendButton, !commentText.trim() && { opacity: 0.5 }]}
                             onPress={async () => {
                                 if (Platform.OS !== 'web') {
-                                    Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 }
-                                try {
-                                    const { sound } = await Audio.Sound.createAsync(
-                                        require('../../assets/sounds/pop.mp3'),
-                                        { shouldPlay: true }
-                                    );
-                                    sound.setOnPlaybackStatusUpdate(status => {
-                                        if (status.didJustFinish) sound.unloadAsync();
-                                    });
-                                } catch (e) {
-                                    console.log("Audio play error", e);
-                                }
+                                
                                 handleAddComment();
                             }}
                             disabled={!commentText.trim()}

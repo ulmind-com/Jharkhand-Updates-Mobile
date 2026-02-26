@@ -1,32 +1,66 @@
 import React, { useState, useEffect } from 'react';
-import { Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, Dimensions, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, Dimensions, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { View as MotiView } from 'moti';
 import axios from 'axios';
-import { PromotionSkeleton } from '../components/Skeletons';
+import * as SecureStore from 'expo-secure-store';
 import { ThemeContext } from '../context/ThemeContext';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48) / 2; // 2 columns with padding
+
+// --- Skeleton Card ---
+const ShopCardSkeleton = ({ colors }) => (
+    <MotiView
+        style={[styles.card, { borderWidth: 0, backgroundColor: colors.surface }]}
+        from={{ opacity: 0.4 }}
+        animate={{ opacity: 1 }}
+        transition={{ type: 'timing', duration: 800, loop: true }}
+    >
+        <View style={[styles.imageContainer, { backgroundColor: colors.border }]} />
+        <View style={{ flex: 1, paddingVertical: 4, gap: 8 }}>
+            <View style={{ height: 16, width: '70%', backgroundColor: colors.border, borderRadius: 4 }} />
+            <View style={{ height: 12, width: '40%', backgroundColor: colors.border, borderRadius: 4 }} />
+            <View style={{ height: 12, width: '90%', backgroundColor: colors.border, borderRadius: 4, marginTop: 4 }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                <View style={{ height: 12, width: '30%', backgroundColor: colors.border, borderRadius: 4 }} />
+                <View style={{ height: 12, width: '20%', backgroundColor: colors.border, borderRadius: 4 }} />
+            </View>
+        </View>
+    </MotiView>
+);
 
 export default function PromotionsScreen() {
     const navigation = useNavigation();
     const { isDarkMode, colors } = React.useContext(ThemeContext);
-    const styles = getStyles(colors, isDarkMode);
     const [shops, setShops] = useState([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
-    const [search, setSearch] = useState("");
+    const [search, setSearch] = useState('');
+    const [myVendor, setMyVendor] = useState(null);
 
     useEffect(() => {
         fetchShops(0, false);
+        checkMyVendor();
     }, []);
+
+    const checkMyVendor = async () => {
+        try {
+            const token = Platform.OS === 'web'
+                ? localStorage.getItem('accessToken')
+                : await SecureStore.getItemAsync('accessToken');
+            if (!token) return;
+            const res = await axios.get(`${BASE_URL}/vendors/me`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.data?.data) setMyVendor(res.data.data);
+        } catch { /* not a vendor or not logged in */ }
+    };
 
     const fetchShops = async (pageNum, append = false) => {
         if (append) setLoadingMore(true);
@@ -49,7 +83,7 @@ export default function PromotionsScreen() {
             setPage(pageData.number);
             setHasMore(!pageData.last);
         } catch (error) {
-            console.error("Error fetching shops:", error);
+            console.error('Error fetching shops:', error);
         } finally {
             setLoading(false);
             setLoadingMore(false);
@@ -67,24 +101,30 @@ export default function PromotionsScreen() {
     );
 
     const renderHeader = () => (
-        <View style={styles.heroSection}>
+        <View style={[styles.heroSection, { backgroundColor: colors.primary }]}>
             <View style={styles.heroContent}>
                 <Text style={styles.heroTitle}>
-                    Discover Local Shops & <Text style={{ color: '#fde047' }}>Trusted Vendors</Text>
+                    Discover Local Shops &{' '}
+                    <Text style={{ color: '#fde047' }}>Trusted Vendors</Text>
                 </Text>
-                <Text style={styles.heroSubtitle}>
+                <Text style={[styles.heroSubtitle, { color: isDarkMode ? colors.surface : '#dcfce7' }]}>
                     Find the best products, services, and deals from verified sellers in your neighborhood.
                 </Text>
 
-                <View style={styles.searchContainer}>
+                <View style={[styles.searchContainer, { backgroundColor: colors.surface }]}>
                     <Ionicons name="search" size={20} color={colors.textDim} />
                     <TextInput
-                        style={styles.searchInput}
+                        style={[styles.searchInput, { color: colors.text }]}
                         placeholder="Search shops..."
                         placeholderTextColor={colors.textDim}
                         value={search}
                         onChangeText={setSearch}
                     />
+                    {search.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearch('')}>
+                            <Ionicons name="close-circle" size={18} color={colors.textDim} />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
         </View>
@@ -92,16 +132,24 @@ export default function PromotionsScreen() {
 
     const renderCard = ({ item }) => (
         <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.9}
-            onPress={() => navigation.navigate('VendorShop', { vendorSlug: item.vendorSlug })}
+            style={[styles.card, {
+                backgroundColor: colors.surface,
+                borderWidth: isDarkMode ? 1 : 0,
+                borderColor: colors.border,
+                shadowColor: colors.shadow,
+            }]}
+            activeOpacity={0.85}
+            onPress={() => {
+                if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate('VendorShop', { vendorSlug: item.vendorSlug });
+            }}
         >
-            <View style={styles.imageContainer}>
+            <View style={[styles.imageContainer, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f9fafb' }]}>
                 {item.shopLogoUrl ? (
                     <Image
                         source={{ uri: item.shopLogoUrl }}
                         style={styles.shopImage}
-                        resizeMode="cover"
+                        resizeMode="contain"
                     />
                 ) : (
                     <View style={styles.placeholderImage}>
@@ -111,40 +159,111 @@ export default function PromotionsScreen() {
             </View>
 
             <View style={styles.cardContent}>
-                <Text style={styles.shopName} numberOfLines={1}>{item.shopName}</Text>
+                <Text style={[styles.shopName, { color: colors.text }]} numberOfLines={1}>
+                    {item.shopName}
+                </Text>
 
                 <View style={styles.badgesRow}>
-                    <View style={styles.verifiedBadge}>
+                    <View style={[styles.verifiedBadge, {
+                        backgroundColor: isDarkMode ? colors.surfaceDeeper : '#ecfdf5',
+                        borderColor: colors.border,
+                    }]}>
                         <Ionicons name="shield-checkmark" size={10} color={isDarkMode ? colors.primaryLight : '#006A4E'} />
-                        <Text style={styles.verifiedText}>Verified</Text>
+                        <Text style={[styles.verifiedText, { color: isDarkMode ? colors.primaryLight : '#006A4E' }]}>
+                            Verified Seller
+                        </Text>
                     </View>
-                    <Text style={styles.productsCount}>{item.productsCount || 0} Products</Text>
+                    <Text style={[styles.productsCount, { color: colors.textDim }]}>
+                        {item.productsCount || 0} Products
+                    </Text>
                 </View>
+
+                {item.shopDescription ? (
+                    <Text style={[styles.shopDesc, { color: colors.textDim }]} numberOfLines={2}>
+                        {item.shopDescription}
+                    </Text>
+                ) : (
+                    <Text style={[styles.shopDesc, { color: colors.textDim }]} numberOfLines={2}>
+                        Visit this shop to see their amazing products and deals.
+                    </Text>
+                )}
 
                 <View style={styles.cardFooter}>
                     <View style={styles.locationRow}>
                         <Ionicons name="location" size={12} color={colors.textDim} />
-                        <Text style={styles.locationText}>Local Vendor</Text>
+                        <Text style={[styles.locationText, { color: colors.textDim }]}>Local Vendor</Text>
                     </View>
-                    <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+                    <View style={[styles.visitBtn, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f0fdf4' }]}>
+                        <Text style={[styles.visitBtnText, { color: colors.primary }]}>Visit Store</Text>
+                        <Ionicons name="arrow-forward" size={14} color={colors.primary} />
+                    </View>
                 </View>
             </View>
         </TouchableOpacity>
     );
 
+    const renderEmptyComponent = () => (
+        <View style={[styles.emptyContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.emptyIconBox, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6' }]}>
+                <Ionicons name="search" size={32} color={colors.textDim} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No shops found</Text>
+            <Text style={[styles.emptyText, { color: colors.textDim }]}>
+                {search.length > 0
+                    ? 'Try searching for a different name.'
+                    : 'No shops available right now. Check back later!'}
+            </Text>
+        </View>
+    );
+
+    const renderFooter = () => {
+        if (loadingMore) {
+            return <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} />;
+        }
+        if (!hasMore && shops.length > 0) {
+            return (
+                <View style={styles.endOfListRow}>
+                    <View style={[styles.endDivider, { backgroundColor: colors.border }]} />
+                    <Text style={[styles.endText, { color: colors.textDim }]}>You've seen all shops</Text>
+                    <View style={[styles.endDivider, { backgroundColor: colors.border }]} />
+                </View>
+            );
+        }
+        return null;
+    };
+
     return (
-        <SafeAreaView style={styles.safeArea} edges={['top']}>
-            <View style={styles.navbar}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
+        <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
+            <View style={[styles.navbar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+                <TouchableOpacity
+                    onPress={() => {
+                        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        navigation.goBack();
+                    }}
+                    style={styles.backButton}
+                >
                     <Ionicons name="chevron-back" size={28} color={colors.primary} />
                 </TouchableOpacity>
-                <Text style={styles.navbarTitle}>Promotions</Text>
-                <Ionicons name="options-outline" size={24} color={colors.primary} style={{ marginLeft: 'auto' }} />
+                <Text style={[styles.navbarTitle, { color: colors.primary }]}>Promotions</Text>
+                {myVendor ? (
+                    <TouchableOpacity
+                        style={styles.manageShopBtn}
+                        onPress={() => {
+                            if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            navigation.navigate('VendorDashboard');
+                        }}
+                    >
+                        <Ionicons name="storefront" size={14} color="#fff" />
+                        <Text style={styles.manageShopText}>My Shop</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <View style={{ width: 40 }} />
+                )}
             </View>
 
-            {loading && !loadingMore ? (
+            {loading ? (
                 <View style={styles.listContent}>
-                    {[1, 2, 3, 4, 5, 6].map(key => <PromotionSkeleton key={key} />)}
+                    {[1, 2, 3, 4, 5].map(key => <ShopCardSkeleton key={key} colors={colors} />)}
                 </View>
             ) : (
                 <FlatList
@@ -155,62 +274,84 @@ export default function PromotionsScreen() {
                     contentContainerStyle={styles.listContent}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.5}
-                    ListFooterComponent={
-                        loadingMore ? <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} /> : null
-                    }
-                    ListEmptyComponent={
-                        <View style={styles.emptyContainer}>
-                            <Ionicons name="search-outline" size={48} color={colors.textDim} />
-                            <Text style={styles.emptyText}>No shops found</Text>
-                        </View>
-                    }
+                    ListFooterComponent={renderFooter}
+                    ListEmptyComponent={renderEmptyComponent}
+                    showsVerticalScrollIndicator={false}
                 />
             )}
         </SafeAreaView>
     );
 }
 
-const getStyles = (colors, isDarkMode) => StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: colors.background }, // Using the green-50 base or background
+const styles = StyleSheet.create({
+    safeArea: { flex: 1 },
     navbar: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        padding: 16, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border
+        padding: 16, borderBottomWidth: 1,
     },
-    backButton: { padding: 8, marginLeft: -8, marginRight: 8 },
-    navbarTitle: { fontSize: 20, fontFamily: 'Outfit_700Bold', color: colors.primary },
-    heroSection: { backgroundColor: colors.primary, paddingBottom: 24, paddingTop: 16, borderRadius: 24, marginBottom: 20, elevation: 8, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: isDarkMode ? 0.3 : 0.15, shadowRadius: 10, marginHorizontal: -16, paddingHorizontal: 16 },
+    backButton: { padding: 8, marginLeft: -8 },
+    navbarTitle: { fontSize: 20, fontFamily: 'Outfit_700Bold' },
+
+    heroSection: {
+        paddingBottom: 28, paddingTop: 20, borderRadius: 24, marginBottom: 20,
+        elevation: 8, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10,
+        marginHorizontal: -16, paddingHorizontal: 16,
+    },
     heroContent: { alignItems: 'center' },
-    heroTitle: { fontSize: 28, fontFamily: 'Outfit_700Bold', color: '#fff', textAlign: 'center', marginBottom: 8, lineHeight: 34 },
-    heroSubtitle: { color: isDarkMode ? colors.surface : '#dcfce7', textAlign: 'center', fontSize: 13, fontFamily: 'Outfit_400Regular', marginBottom: 20, paddingHorizontal: 10 },
-    searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 100, paddingHorizontal: 16, width: '100%', height: 46, elevation: 5 },
-    searchInput: { flex: 1, marginLeft: 8, color: colors.text, fontSize: 15 },
-    listContent: { padding: 16, paddingBottom: 100 },
-    row: { justifyContent: 'space-between' },
-    card: {
-        width: '100%', backgroundColor: colors.surface, borderRadius: 20, marginBottom: 16,
-        overflow: 'hidden', elevation: 3, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDarkMode ? 0.3 : 0.1, shadowRadius: 4,
-        borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', padding: 12
+    heroTitle: { fontSize: 26, fontFamily: 'Outfit_700Bold', color: '#fff', textAlign: 'center', marginBottom: 8, lineHeight: 32 },
+    heroSubtitle: { textAlign: 'center', fontSize: 13, fontFamily: 'Outfit_400Regular', marginBottom: 20, paddingHorizontal: 10 },
+    searchContainer: {
+        flexDirection: 'row', alignItems: 'center',
+        borderRadius: 100, paddingHorizontal: 16, width: '100%', height: 48, elevation: 5,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8,
     },
-    imageContainer: { width: 90, height: 90, borderRadius: 20, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f9fafb', marginRight: 16, overflow: 'hidden' },
+    searchInput: { flex: 1, marginLeft: 8, fontSize: 15, fontFamily: 'Outfit_400Regular' },
+
+    listContent: { padding: 16, paddingBottom: 100 },
+
+    card: {
+        width: '100%', borderRadius: 20, marginBottom: 16, overflow: 'hidden',
+        elevation: 3, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4,
+        flexDirection: 'row', alignItems: 'flex-start', padding: 12,
+    },
+    imageContainer: { width: 90, height: 90, borderRadius: 20, marginRight: 14, overflow: 'hidden', flexShrink: 0 },
     shopImage: { width: '100%', height: '100%' },
     placeholderImage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    cardContent: { flex: 1, paddingVertical: 4 },
-    shopName: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 6 },
-    badgesRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-    verifiedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#ecfdf5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: colors.border, gap: 4 },
-    verifiedText: { color: isDarkMode ? colors.primaryLight : '#006A4E', fontSize: 10, fontFamily: 'Outfit_400Regular', fontFamily: 'Outfit_700Bold' },
-    productsCount: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: colors.textDim, fontFamily: 'Outfit_600SemiBold' },
-    cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' },
+
+    cardContent: { flex: 1, paddingVertical: 2 },
+    shopName: { fontSize: 16, fontFamily: 'Outfit_700Bold', marginBottom: 6 },
+    shopDesc: { fontSize: 12, fontFamily: 'Outfit_400Regular', lineHeight: 16, marginBottom: 8 },
+
+    badgesRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+    verifiedBadge: {
+        flexDirection: 'row', alignItems: 'center',
+        paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6,
+        borderWidth: 1, gap: 4,
+    },
+    verifiedText: { fontSize: 10, fontFamily: 'Outfit_700Bold' },
+    productsCount: { fontSize: 12, fontFamily: 'Outfit_600SemiBold' },
+
+    cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
     locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    locationText: { fontSize: 10, fontFamily: 'Outfit_400Regular', color: colors.textDim, fontFamily: 'Outfit_500Medium' },
-    loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    emptyContainer: { alignItems: 'center', marginTop: 40 },
-    emptyText: { marginTop: 12, fontSize: 16, fontFamily: 'Outfit_400Regular', color: colors.textDim, fontFamily: 'Outfit_500Medium' }
+    locationText: { fontSize: 11, fontFamily: 'Outfit_500Medium' },
+    visitBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+    visitBtnText: { fontSize: 12, fontFamily: 'Outfit_700Bold' },
+
+    emptyContainer: {
+        alignItems: 'center', marginTop: 20, borderRadius: 16, padding: 32,
+        borderWidth: 1, borderStyle: 'dashed',
+    },
+    emptyIconBox: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+    emptyTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', marginBottom: 8 },
+    emptyText: { fontSize: 14, fontFamily: 'Outfit_400Regular', textAlign: 'center' },
+
+    endOfListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 20, paddingHorizontal: 16 },
+    endDivider: { flex: 1, height: 1 },
+    endText: { fontSize: 12, fontFamily: 'Outfit_500Medium' },
+
+    manageShopBtn: {
+        flexDirection: 'row', alignItems: 'center', gap: 5,
+        backgroundColor: '#006A4E', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10,
+    },
+    manageShopText: { color: '#fff', fontSize: 12, fontFamily: 'Outfit_700Bold' },
 });
-
-
-
-
-
-
-

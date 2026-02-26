@@ -101,7 +101,7 @@ export default function CreateCommunityPostScreen() {
 
             if (res.data.success) {
                 if (Platform.OS !== 'web') {
-                    Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }
                 const isPending = res.data.data && res.data.data.status === 'PENDING';
                 Toast.show({ 
@@ -137,7 +137,7 @@ export default function CreateCommunityPostScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
+                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={24} color="#047857" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Create Community Post</Text>
@@ -208,7 +208,7 @@ export default function CreateCommunityPostScreen() {
                         style={[styles.submitBtn, loading && { opacity: 0.7 }]}
                         onPress={() => {
                             if (Platform.OS !== 'web') {
-                                Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                             }
                             handleSubmit();
                         }}

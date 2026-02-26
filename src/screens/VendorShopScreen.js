@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Dimensions, Platform } from 'react-native';
+import { Vibration, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Dimensions, Platform } from 'react-native';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import Toast from 'react-native-toast-message';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { View as MotiView } from 'moti';
 import * as SecureStore from 'expo-secure-store';
+import { Share, Modal } from 'react-native';
 import CartModal from '../components/CartModal';
 
 const { width } = Dimensions.get('window');
@@ -80,7 +81,7 @@ export default function VendorShopScreen() {
     const navigation = useNavigation();
     // For now we will hardcode a slug or accept it from params.
     // In a real flow, a "Vendors" directory would pass this.
-    const slug = route.params?.slug || 'demo-shop';
+    const slug = route.params?.vendorSlug || route.params?.slug || 'demo-shop';
 
     const [vendor, setVendor] = useState(null);
     const [products, setProducts] = useState([]);
@@ -90,6 +91,22 @@ export default function VendorShopScreen() {
     // Cart state
     const [cart, setCart] = useState(null);
     const [isCartOpen, setIsCartOpen] = useState(false);
+
+    // Fullscreen Image state
+    const [fullscreenImage, setFullscreenImage] = useState(null);
+
+    const handleShare = async () => {
+        if (!vendor) return;
+        try {
+            await Share.share({
+                message: `Check out ${vendor.shopName} on Jharkhand Bihar Updates!`,
+                url: `https://jharkhandbiharupdates.com/shop/${slug}`,
+                title: vendor.shopName
+            });
+        } catch (error) {
+            console.error("Share error:", error);
+        }
+    };
 
     const getSessionId = async () => {
         try {
@@ -168,9 +185,40 @@ export default function VendorShopScreen() {
 
     if (loading) {
         return (
-            <View style={styles.loaderContainer}>
-                <ActivityIndicator size="large" color="#047857" />
-            </View>
+            <SafeAreaView style={styles.container} edges={['top']}>
+                <View style={styles.headerOverlay}>
+                    <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+                        <Ionicons name="arrow-back" size={24} color="#111827" />
+                    </TouchableOpacity>
+                </View>
+                <MotiView
+                    from={{ opacity: 0.5 }} animate={{ opacity: 1 }}
+                    transition={{ type: 'timing', duration: 1000, loop: true }}
+                >
+                    <View style={[styles.coverContainer, { backgroundColor: '#e5e7eb' }]} />
+                    <View style={styles.profileSection}>
+                        <View style={[styles.logoContainer, { backgroundColor: '#d1d5db', borderWidth: 4, borderColor: '#fff' }]} />
+                        <View style={[styles.shopInfo, { height: 100, backgroundColor: '#fff', borderRadius: 20 }]}>
+                            <View style={{ height: 24, width: '60%', backgroundColor: '#e5e7eb', borderRadius: 4, marginBottom: 8 }} />
+                            <View style={{ height: 14, width: '40%', backgroundColor: '#e5e7eb', borderRadius: 4, marginBottom: 12 }} />
+                            <View style={{ height: 14, width: '90%', backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+                        </View>
+                    </View>
+                    <View style={styles.productsSection}>
+                        {[1, 2, 3, 4].map(i => (
+                            <View key={i} style={[styles.productCard, { marginBottom: 16 }]}>
+                                <View style={[styles.productImageContainer, { backgroundColor: '#e5e7eb' }]} />
+                                <View style={{ flex: 1, paddingVertical: 4 }}>
+                                    <View style={{ height: 16, width: '80%', backgroundColor: '#e5e7eb', borderRadius: 4, marginBottom: 8 }} />
+                                    <View style={{ height: 12, width: '100%', backgroundColor: '#f3f4f6', borderRadius: 4, marginBottom: 4 }} />
+                                    <View style={{ height: 12, width: '60%', backgroundColor: '#f3f4f6', borderRadius: 4, marginBottom: 16 }} />
+                                    <View style={{ height: 20, width: '30%', backgroundColor: '#e5e7eb', borderRadius: 4 }} />
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                </MotiView>
+            </SafeAreaView>
         );
     }
 
@@ -183,7 +231,7 @@ export default function VendorShopScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             {/* Header Back Button Overlay */}
             <View style={styles.headerOverlay}>
-                <TouchableOpacity style={styles.backButton} onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }}>
+                <TouchableOpacity style={styles.backButton} onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                 </TouchableOpacity>
             </View>
@@ -191,7 +239,11 @@ export default function VendorShopScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent}>
 
                 {/* Cover Image */}
-                <View style={styles.coverContainer}>
+                <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => vendor.shopCoverUrl && setFullscreenImage(vendor.shopCoverUrl)}
+                    style={styles.coverContainer}
+                >
                     {vendor.shopCoverUrl ? (
                         <Image source={{ uri: vendor.shopCoverUrl }} style={styles.coverImage} />
                     ) : (
@@ -199,11 +251,15 @@ export default function VendorShopScreen() {
                             <Ionicons name="storefront" size={64} color="#dcfce7" />
                         </View>
                     )}
-                </View>
+                </TouchableOpacity>
 
                 {/* Profile Section */}
                 <View style={styles.profileSection}>
-                    <View style={styles.logoContainer}>
+                    <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => vendor.shopLogoUrl && setFullscreenImage(vendor.shopLogoUrl)}
+                        style={styles.logoContainer}
+                    >
                         {vendor.shopLogoUrl ? (
                             <Image source={{ uri: vendor.shopLogoUrl }} style={styles.logoImage} />
                         ) : (
@@ -214,24 +270,34 @@ export default function VendorShopScreen() {
                                 <Ionicons name="checkmark-circle" size={16} color="#3b82f6" />
                             </View>
                         )}
-                    </View>
+                    </TouchableOpacity>
 
                     <View style={styles.shopInfo}>
-                        <Text style={styles.shopName}>{vendor.shopName}</Text>
-                        <View style={styles.locationRow}>
-                            <Ionicons name="location" size={14} color="#6b7280" />
-                            <Text style={styles.locationText}>{vendor.shopAddress || "Local Vendor"}</Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <View style={{ flex: 1, paddingRight: 10 }}>
+                                <Text style={styles.shopName}>{vendor.shopName}</Text>
+                                <View style={styles.locationRow}>
+                                    <Ionicons name="location" size={14} color="#6b7280" />
+                                    <Text style={styles.locationText}>{vendor.shopAddress || "Local Vendor"}</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity onPress={handleShare} style={styles.shareButton}>
+                                <Ionicons name="share-social-outline" size={20} color="#374151" />
+                            </TouchableOpacity>
                         </View>
-                        <Text style={styles.shopDescription}>{vendor.shopDescription}</Text>
+                        <Text style={styles.shopDescription}>{vendor.shopDescription || "Welcome to our shop! We provide high-quality products for our local community. Browse our collection below."}</Text>
                     </View>
                 </View>
 
                 {/* Products Section */}
                 <View style={styles.productsSection}>
                     {products.length === 0 ? (
-                        <View style={styles.emptyState}>
-                            <Ionicons name="bag-handle-outline" size={48} color="#d1d5db" />
-                            <Text style={styles.emptyText}>No products found.</Text>
+                        <View style={[styles.emptyState, { backgroundColor: '#fff', borderRadius: 16, padding: 32, borderWidth: 1, borderColor: '#e5e7eb', borderStyle: 'dashed' }]}>
+                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                                <Ionicons name="bag-handle" size={32} color="#d1d5db" />
+                            </View>
+                            <Text style={{ fontSize: 18, fontFamily: 'Outfit_700Bold', color: '#1f2937' }}>No products found</Text>
+                            <Text style={[styles.emptyText, { marginTop: 4 }]}>This shop hasn't added any products yet.</Text>
                         </View>
                     ) : (
                         <>
@@ -298,6 +364,23 @@ export default function VendorShopScreen() {
                 cart={cart}
                 refreshCart={() => refreshCart()}
             />
+
+            {/* Fullscreen Image Modal */}
+            <Modal visible={!!fullscreenImage} transparent={true} animationType="fade" onRequestClose={() => setFullscreenImage(null)}>
+                <View style={styles.fullscreenModal}>
+                    <TouchableOpacity style={styles.fullscreenCloseArea} activeOpacity={1} onPress={() => setFullscreenImage(null)} />
+                    <TouchableOpacity style={styles.closeFullscreenBtn} onPress={() => setFullscreenImage(null)}>
+                        <Ionicons name="close" size={28} color="#fff" />
+                    </TouchableOpacity>
+                    <MotiView
+                        from={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                        style={styles.fullscreenImageWrapper}
+                        pointerEvents="none"
+                    >
+                        <Image source={{ uri: fullscreenImage }} style={styles.fullscreenImage} resizeMode="contain" />
+                    </MotiView>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -317,7 +400,7 @@ const styles = StyleSheet.create({
     logoContainer: {
         width: 100, height: 100, borderRadius: 50, backgroundColor: '#fff',
         borderWidth: 4, borderColor: '#fff', elevation: 4, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
-        alignItems: 'center', justifyContent: 'center', marginBottom: 12
+        alignItems: 'center', justifyContent: 'center', marginBottom: 12, overflow: 'hidden'
     },
     logoImage: { width: '100%', height: '100%', borderRadius: 50, resizeMode: 'cover' },
     verifiedBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#fff', borderRadius: 20 },
@@ -327,6 +410,13 @@ const styles = StyleSheet.create({
     locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
     locationText: { fontSize: 13, fontFamily: 'Outfit_400Regular', color: '#6b7280' },
     shopDescription: { fontSize: 14, fontFamily: 'Outfit_400Regular', color: '#4b5563', lineHeight: 20 },
+    shareButton: { padding: 8, backgroundColor: '#f3f4f6', borderRadius: 12 },
+
+    fullscreenModal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
+    fullscreenCloseArea: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
+    closeFullscreenBtn: { position: 'absolute', top: 50, right: 20, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.15)', padding: 8, borderRadius: 20 },
+    fullscreenImageWrapper: { width: '100%', height: '80%', alignItems: 'center', justifyContent: 'center' },
+    fullscreenImage: { width: '100%', height: '100%' },
 
     productsSection: { padding: 16, marginTop: 8 },
     categoryBlock: { marginBottom: 24 },

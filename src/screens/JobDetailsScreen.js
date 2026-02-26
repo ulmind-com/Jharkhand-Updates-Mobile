@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Linking, Alert, KeyboardAvoidingView } from 'react-native';
+import { Vibration, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Linking, Alert, KeyboardAvoidingView } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -251,7 +251,14 @@ export default function JobDetailsScreen() {
 
             const res = await axios.get(`${BASE_URL}/comments/jobs/${jobId}`, { headers });
             if (res.data.success) {
-                setComments(res.data.data);
+                let fetchedComments = res.data.data || [];
+                fetchedComments.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                fetchedComments.forEach(cmt => {
+                    if (cmt.replies) {
+                       cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                    }
+                });
+                setComments(fetchedComments);
             }
         } catch (error) {
             console.error("Error fetching comments:", error);
@@ -284,7 +291,19 @@ export default function JobDetailsScreen() {
             }
 
             setCommentText("");
-            fetchComments();
+            await fetchComments();
+
+            try {
+                const { sound } = await Audio.Sound.createAsync(
+                    require('../../assets/sounds/pop.mp3'),
+                    { shouldPlay: true }
+                );
+                sound.setOnPlaybackStatusUpdate(status => {
+                    if (status.didJustFinish) sound.unloadAsync();
+                });
+            } catch (e) {
+                console.log("Audio play error", e);
+            }
         } catch (error) {
             console.error("Error adding/editing comment:", error);
             Toast.show({ type: 'error', text1: 'Action failed' });
@@ -376,7 +395,7 @@ export default function JobDetailsScreen() {
                 style={{ flex: 1 }}
             >
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Job Details</Text>

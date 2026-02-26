@@ -9,6 +9,12 @@ import { View as MotiView } from 'moti';
 
 const WEATHER_API_KEY = "08e6542c3ce14ae39f1174408252212";
 
+// Global cache to prevent duplicate requests when remounted rapidly (e.g. ListHeaderComponent)
+let cachedWeather = null;
+let cachedForecast = null;
+let lastFetchTime = 0;
+
+
 export default function WeatherWidget() {
     const [userName, setUserName] = useState('User');
     const [weather, setWeather] = useState(null);
@@ -69,6 +75,15 @@ export default function WeatherWidget() {
     useEffect(() => {
         const fetchWeather = async () => {
             try {
+                // Return cached data if less than 15 minutes old
+                const now = Date.now();
+                if (cachedWeather && lastFetchTime && (now - lastFetchTime < 15 * 60 * 1000)) {
+                    setWeather(cachedWeather);
+                    setForecast(cachedForecast || []);
+                    setLoading(false);
+                    return;
+                }
+
                 let { status } = await Location.requestForegroundPermissionsAsync();
                 if (status !== 'granted') {
                     setErrorMsg('Permission to access location was denied');
@@ -76,30 +91,54 @@ export default function WeatherWidget() {
                     return;
                 }
 
-                let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                // 1. Try last known for instant speed
+                let location = await Location.getLastKnownPositionAsync();
+
+                // 2. Fallback to current with 5-second timeout if null
+                if (!location) {
+                    location = await Promise.race([
+                        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 4000))
+                    ]);
+                }
+
                 const { latitude, longitude } = location.coords;
 
-                // Use forecast.json for Next 3 Days forecast as per the new UI layout
                 const resp = await axios.get(`https://api.weatherapi.com/v1/forecast.json?key=${WEATHER_API_KEY}&q=${latitude},${longitude}&days=3&aqi=no&alerts=no`);
 
-                setWeather({
+                const newWeather = {
                     temp: Math.round(resp.data.current.temp_c),
                     condition: resp.data.current.condition.text,
                     isDay: resp.data.current.is_day === 1
-                });
+                };
 
+                let newForecast = [];
                 if (resp.data.forecast && resp.data.forecast.forecastday) {
-                    setForecast(resp.data.forecast.forecastday.map(day => ({
+                    newForecast = resp.data.forecast.forecastday.map(day => ({
                         date: new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }),
                         avgTemp: Math.round(day.day.avgtemp_c),
                         condition: day.day.condition.text
-                    })));
+                    }));
                 }
 
+                // Update global cache
+                cachedWeather = newWeather;
+                cachedForecast = newForecast;
+                lastFetchTime = Date.now();
+
+                setWeather(newWeather);
+                setForecast(newForecast);
                 setLoading(false);
             } catch (error) {
                 console.error("Error fetching weather:", error);
-                setErrorMsg('Failed to load weather');
+
+                // If it timed out but we have stale cache, use it instead of erroring
+                if (cachedWeather) {
+                    setWeather(cachedWeather);
+                    setForecast(cachedForecast || []);
+                } else {
+                    setErrorMsg('Failed to load weather');
+                }
                 setLoading(false);
             }
         };

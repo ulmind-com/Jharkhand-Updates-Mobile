@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, Platform } from 'react-native';
+import { Vibration, View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -99,7 +99,7 @@ export default function EmailServiceScreen() {
                         <TouchableOpacity
                             style={[styles.actionBtn, { backgroundColor: isLoading ? '#9ca3af' : '#10b981' }]}
                             onPress={() => {
-                                if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 handleSubscribe();
                             }}
                             disabled={isLoading}
@@ -207,7 +207,7 @@ export default function EmailServiceScreen() {
                         <TouchableOpacity
                             style={[styles.actionBtn, { backgroundColor: '#ef4444', marginTop: 16 }]}
                             onPress={() => {
-                                if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 handleUnsubscribe();
                             }}
                             disabled={isUnsubscribing}

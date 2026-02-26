@@ -255,7 +255,14 @@ export default function StateNewsDetailsScreen() {
 
             const res = await axios.get(`${BASE_URL}/comments/state-news/${newsId}`, { headers });
             if (res.data.success) {
-                setComments(res.data.data);
+                let fetchedComments = res.data.data || [];
+                fetchedComments.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                fetchedComments.forEach(cmt => {
+                    if (cmt.replies) {
+                       cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                    }
+                });
+                setComments(fetchedComments);
             }
         } catch (error) {
             console.error("Error fetching comments:", error);
@@ -285,21 +292,25 @@ export default function StateNewsDetailsScreen() {
                 await axios.post(`${BASE_URL}/comments/state-news/${newsId}`, payload, { headers });
                 setReplyingTo(null);
 
-                try {
-                    const { sound } = await Audio.Sound.createAsync(
-                        { uri: 'https://actions.google.com/sounds/v1/water/wood_tap_hollow.ogg' },
-                        { shouldPlay: true }
-                    );
-                    sound.setOnPlaybackStatusUpdate(status => {
-                        if (status.didJustFinish) sound.unloadAsync();
-                    });
-                } catch (e) { console.log(e); }
+                
 
                 Toast.show({ type: 'success', text1: 'Comment added!' });
             }
 
             setCommentText("");
-            fetchComments();
+            await fetchComments();
+
+            try {
+                const { sound } = await Audio.Sound.createAsync(
+                    require('../../assets/sounds/pop.mp3'),
+                    { shouldPlay: true }
+                );
+                sound.setOnPlaybackStatusUpdate(status => {
+                    if (status.didJustFinish) sound.unloadAsync();
+                });
+            } catch (e) {
+                console.log("Audio play error", e);
+            }
         } catch (error) {
             console.error("Error adding/editing comment:", error);
             Toast.show({ type: 'error', text1: 'Action failed' });
@@ -387,7 +398,7 @@ export default function StateNewsDetailsScreen() {
             >
                 {/* Header */}
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
+                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color={colors.primary} />
                         <Text style={styles.backText}>Back</Text>
                     </TouchableOpacity>
@@ -515,19 +526,9 @@ export default function StateNewsDetailsScreen() {
                             style={[styles.sendButton, !commentText.trim() && { opacity: 0.5 }]}
                             onPress={async () => {
                                 if (Platform.OS !== 'web') {
-                                    Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 }
-                                try {
-                                    const { sound } = await Audio.Sound.createAsync(
-                                        require('../../assets/sounds/pop.mp3'),
-                                        { shouldPlay: true }
-                                    );
-                                    sound.setOnPlaybackStatusUpdate(status => {
-                                        if (status.didJustFinish) sound.unloadAsync();
-                                    });
-                                } catch (e) {
-                                    console.log("Audio play error", e);
-                                }
+                                
                                 handleAddComment();
                             }}
                             disabled={!commentText.trim()}

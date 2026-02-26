@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Platform, Alert } from 'react-native';
+import { Vibration, View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -61,7 +61,7 @@ export default function PendingCategoryListScreen() {
             });
             Toast.show({ type: 'success', text1: 'Success', text2: `Item ${action}d successfully` });
             if (Platform.OS !== 'web') {
-                Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }
         } catch (error) {
             console.error(`Error ${action}ing ${categoryId}:`, error);
@@ -72,7 +72,7 @@ export default function PendingCategoryListScreen() {
 
     const confirmAction = (item, action) => {
         if (Platform.OS !== 'web') {
-            Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
         if (Platform.OS === 'web') {
             if (window.confirm(`Are you sure you want to ${action} this request?`)) {
@@ -88,7 +88,7 @@ export default function PendingCategoryListScreen() {
 
     const handleView = (item) => {
         if (Platform.OS !== 'web') {
-            Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         }
         const id = item.id || item._id;
         if (categoryId === 'properties') navigation.navigate('PropertyDetails', { propertyId: id });
@@ -168,7 +168,7 @@ export default function PendingCategoryListScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => {
-                    if (Platform.OS !== 'web') { Platform.OS === 'android' ? require('react-native').Vibration.vibrate(100) : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+                    if (Platform.OS !== 'web') { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
                     navigation.goBack();
                 }}>
                     <Ionicons name="arrow-back" size={24} color={colors.text} />
