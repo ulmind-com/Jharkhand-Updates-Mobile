@@ -102,17 +102,30 @@ export const DetailSkeleton = () => {
     const styles = getStyles(colors, isDarkMode);
     return (
         <View style={styles.detailCard}>
-            <ContentLoader speed={1} width={width} height={600} viewBox={`0 0 ${width} 600`} backgroundColor={isDarkMode ? colors.surfaceDeeper : "#f3f4f6"} foregroundColor={isDarkMode ? colors.border : "#e5e7eb"}>
-                <Rect x="0" y="0" width="100%" height="250" />
-                <Rect x="20" y="280" rx="4" ry="4" width="80%" height="28" />
-                <Rect x="20" y="320" rx="4" ry="4" width="40%" height="16" />
-                <Rect x="20" y="350" rx="4" ry="4" width="60" height="24" />
-                <Rect x="90" y="350" rx="4" ry="4" width="80" height="24" />
-                <Rect x="20" y="400" rx="4" ry="4" width="90%" height="14" />
-                <Rect x="20" y="425" rx="4" ry="4" width="95%" height="14" />
-                <Rect x="20" y="450" rx="4" ry="4" width="85%" height="14" />
-                <Rect x="20" y="475" rx="4" ry="4" width="80%" height="14" />
-                <Rect x="20" y="500" rx="4" ry="4" width="90%" height="14" />
+            <ContentLoader speed={1} width={width} height={580} viewBox={`0 0 ${width} 580`} backgroundColor={isDarkMode ? colors.surfaceDeeper : "#f3f4f6"} foregroundColor={isDarkMode ? colors.border : "#e5e7eb"}>
+                {/* ① Title lines — at the very top */}
+                <Rect x="20" y="20" rx="4" ry="4" width="90%" height="22" />
+                <Rect x="20" y="52" rx="4" ry="4" width="70%" height="22" />
+
+                {/* ② Image block */}
+                <Rect x="0" y="92" rx="16" ry="16" width="100%" height="210" />
+
+                {/* ③ Author row — avatar circle + name + date */}
+                <Circle cx="40" cy="340" r="22" />
+                <Rect x="72" y="326" rx="4" ry="4" width="130" height="14" />
+                <Rect x="72" y="348" rx="4" ry="4" width="90" height="11" />
+
+                {/* ④ Location + share row */}
+                <Rect x="20" y="378" rx="4" ry="4" width="80" height="12" />
+                <Rect x={width - 52} y="370" rx="20" ry="20" width="36" height="36" />
+
+                {/* ⑤ Content lines */}
+                <Rect x="20" y="418" rx="4" ry="4" width="95%" height="12" />
+                <Rect x="20" y="440" rx="4" ry="4" width="90%" height="12" />
+                <Rect x="20" y="462" rx="4" ry="4" width="93%" height="12" />
+                <Rect x="20" y="484" rx="4" ry="4" width="85%" height="12" />
+                <Rect x="20" y="506" rx="4" ry="4" width="90%" height="12" />
+                <Rect x="20" y="528" rx="4" ry="4" width="60%" height="12" />
             </ContentLoader>
         </View>
     );

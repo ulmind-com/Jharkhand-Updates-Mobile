@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Alert, KeyboardAvoidingView, Vibration } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Alert, KeyboardAvoidingView, Vibration, Share } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -243,7 +243,7 @@ export default function CommunityPostDetailsScreen() {
         }
     };
 
-    
+
     const handleAdminAction = async (action) => {
         try {
             setProcessingAdmin(true);
@@ -270,7 +270,7 @@ export default function CommunityPostDetailsScreen() {
                 fetchedComments.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
                 fetchedComments.forEach(cmt => {
                     if (cmt.replies) {
-                       cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                        cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
                     }
                 });
                 setComments(fetchedComments);
@@ -379,6 +379,18 @@ export default function CommunityPostDetailsScreen() {
     const authorName = `${post.author.firstName} ${post.author.lastName}`;
     const dateStr = new Date(post.createdAt).toLocaleDateString();
 
+    const handleShare = async () => {
+        try {
+            const webUrl = `https://jharkhandupdates.com/community/details/${post.id || post._id}`;
+            const title = post.title || 'Community Post';
+            const snippet = (post.content || '').trim().slice(0, 100);
+            await Share.share({
+                title,
+                message: `${title}\n\n${snippet}${snippet.length >= 100 ? '...' : ''}\n\nRead more: ${webUrl}`,
+            });
+        } catch (e) { /* dismissed */ }
+    };
+
     const getRootComments = (comments) => {
         if (!comments) return [];
         const replyIds = new Set();
@@ -409,7 +421,9 @@ export default function CommunityPostDetailsScreen() {
                         <Ionicons name="arrow-back" size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Post</Text>
-                    <View style={{ width: 40 }} />
+                    <TouchableOpacity onPress={handleShare} style={styles.shareBtn} activeOpacity={0.8}>
+                        <Ionicons name="arrow-redo-outline" size={20} color="#fff" />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -499,7 +513,7 @@ export default function CommunityPostDetailsScreen() {
                                 if (Platform.OS !== 'web') {
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 }
-                                
+
                                 handleAddComment();
                             }}
                             disabled={!commentText.trim()}
@@ -527,6 +541,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
     backButton: { padding: 8, marginLeft: -8 },
     headerTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
+    shareBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', elevation: 2 },
 
     scrollContent: { paddingBottom: 24 },
 
@@ -540,7 +555,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
 
     postTitle: { fontSize: 20, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 12, lineHeight: 28 },
     postImage: { width: width, backgroundColor: 'transparent', alignSelf: 'center', marginBottom: 16 },
-    postContent: { fontSize: 16, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 24 },
+    postContent: { fontSize: 16, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 24, textAlign: 'justify' },
 
     commentsSection: { paddingHorizontal: 16, backgroundColor: colors.surface, borderRadius: 20, marginHorizontal: 16, paddingVertical: 20, elevation: 1, shadowColor: colors.shadow, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 2, marginBottom: 20, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
     commentsHeader: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 20 },
@@ -552,7 +567,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     commentHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     commentAuthor: { fontFamily: 'Outfit_700Bold', fontSize: 14, color: colors.text, flexDirection: 'row', alignItems: 'center' },
     commentDate: { fontSize: 11, fontFamily: 'Outfit_400Regular', color: colors.textDim },
-    commentContent: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 22 },
+    commentContent: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 22, textAlign: 'justify' },
 
     commentActions: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 16 },
     replyButton: { flexDirection: 'row', alignItems: 'center' },

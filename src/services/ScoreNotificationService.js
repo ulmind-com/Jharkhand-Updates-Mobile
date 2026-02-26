@@ -2,14 +2,12 @@ import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import { Platform } from 'react-native';
+import { cricketFetch } from './CricketApi';
 
-// ─── Config ───────────────────────────────────────────────────────
-const RAPID_API_KEY = '4854f0d1b9msh2fa3c7ea80e9d1ep1ab3c8jsn4b37a3e01b78';
-const RAPID_API_HOST = 'cricbuzz-cricket.p.rapidapi.com';
 const BG_TASK_NAME = 'SCORE_BACKGROUND_FETCH';
 const CHANNEL_ID = 'score-tracker';
 
-// ─── Notification appearance (show banner even in foreground) ─────
+// ─── Notification appearance ───────────────────────────────────────
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
         shouldShowAlert: true,
@@ -18,12 +16,12 @@ Notifications.setNotificationHandler({
     }),
 });
 
-// ─── Setup Android notification channel ───────────────────────────
+// ─── Android notification channel ─────────────────────────────────
 export async function setupNotificationChannel() {
     if (Platform.OS !== 'android') return;
     await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
         name: 'Live Score Tracker',
-        description: 'Persistent cricket match score updates',
+        description: 'Cricket match score updates',
         importance: Notifications.AndroidImportance.DEFAULT,
         vibrationPattern: [0],
         enableLights: false,
@@ -33,10 +31,10 @@ export async function setupNotificationChannel() {
     });
 }
 
-// ─── Active tracking state (in-memory) ────────────────────────────
+// ─── Tracked matches (in-memory) ──────────────────────────────────
 const trackedMatches = {}; // { matchId: { intervalId, match } }
 
-// ─── Request permission ───────────────────────────────────────────
+// ─── Request permission ────────────────────────────────────────────
 export async function requestNotificationPermission() {
     const { status: existing } = await Notifications.getPermissionsAsync();
     if (existing === 'granted') return true;
@@ -44,121 +42,99 @@ export async function requestNotificationPermission() {
     return status === 'granted';
 }
 
-// ─── Check if a match is being tracked ───────────────────────────
+// ─── Check if tracked ─────────────────────────────────────────────
 export function isTracking(matchId) {
     return !!trackedMatches[String(matchId)];
 }
 
-// ─── Start tracking a match ───────────────────────────────────────
+// ─── Start tracking ───────────────────────────────────────────────
 export async function startTracking(match) {
     await setupNotificationChannel();
-
-    const matchId = String(match.id || match.matchInfo?.matchId || '');
+    const matchId = String(match.id || '');
     if (!matchId || matchId === 'undefined' || trackedMatches[matchId]) return;
 
     const hasPermission = await requestNotificationPermission();
     if (!hasPermission) return false;
 
-    // Show notification immediately with current data
+    // Show immediately
     await showScoreNotification(matchId, match, null);
 
-    // Poll every 30s for updated score
+    // Poll every 30s
     const intervalId = setInterval(async () => {
         try {
-            const score = await fetchScore(matchId);
-            await showScoreNotification(matchId, match, score);
+            const liveData = await fetchMatchInfo(matchId);
+            await showScoreNotification(matchId, match, liveData);
         } catch (e) {
             console.warn('[ScoreNotif] Poll error', e.message);
         }
     }, 30000);
 
     trackedMatches[matchId] = { intervalId, match };
-
-    // Register background fetch fallback
     await registerBackgroundTask();
-
     return true;
 }
 
-// ─── Stop tracking a match ────────────────────────────────────────
+// ─── Stop tracking ────────────────────────────────────────────────
 export async function stopTracking(matchId) {
     const id = String(matchId);
     const entry = trackedMatches[id];
     if (!entry) return;
-
     clearInterval(entry.intervalId);
-
-    // Dismiss this notification
     const identifier = `match_score_${id}`;
     try { await Notifications.dismissNotificationAsync(identifier); } catch (_) { }
-
     delete trackedMatches[id];
-
-    if (Object.keys(trackedMatches).length === 0) {
-        await unregisterBackgroundTask();
-    }
+    if (Object.keys(trackedMatches).length === 0) await unregisterBackgroundTask();
 }
 
-// ─── Fetch score from Cricbuzz API ────────────────────────────────
-async function fetchScore(matchId) {
-    const res = await fetch(
-        `https://${RAPID_API_HOST}/mcenter/v1/${matchId}/hscard`,
-        { headers: { 'x-rapidapi-key': RAPID_API_KEY, 'x-rapidapi-host': RAPID_API_HOST } }
-    );
-    return res.json();
+// ─── Fetch latest match info from cricketdata.org ─────────────────
+async function fetchMatchInfo(matchId) {
+    const json = await cricketFetch(`/match_info?id=${matchId}`);
+    return json.data || null;
 }
 
-// ─── Convert epoch ms to IST string ──────────────────────────────
-function toIST(epochMs) {
-    if (!epochMs) return '';
+// ─── Convert GMT to IST ───────────────────────────────────────────
+function toIST(dateTimeGMT) {
+    if (!dateTimeGMT) return '';
     try {
-        const date = new Date(Number(epochMs));
-        return date.toLocaleString('en-IN', {
+        const d = new Date(dateTimeGMT + 'Z');
+        return d.toLocaleString('en-IN', {
             timeZone: 'Asia/Kolkata',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-            day: '2-digit',
-            month: 'short',
+            hour: '2-digit', minute: '2-digit', hour12: true,
         });
-    } catch {
-        return '';
-    }
+    } catch { return ''; }
 }
 
-// ─── Build notification title + body ─────────────────────────────
-function buildNotifContent(match, scoreData) {
-    const t1 = match.team1?.teamName || match.matchInfo?.team1?.teamName || 'Team A';
-    const t2 = match.team2?.teamName || match.matchInfo?.team2?.teamName || 'Team B';
-    const status = match.status || match.matchInfo?.status || '';
-    const startTime = match.matchInfo?.startDate;
+// ─── Build score line from cricketdata.org score[] ────────────────
+// score = [{r, w, o, inning}, ...]
+function buildScoreLine(scores = []) {
+    if (!scores.length) return '';
+    return scores.map(s => {
+        const team = (s.inning || '').replace(/ Inning \d+/i, '').trim();
+        return `${team}: ${s.r}/${s.w} (${s.o} ov)`;
+    }).join('\n');
+}
 
-    // Live score from scorecard
-    let scoreText = '';
-    if (scoreData?.scorecard?.length > 0) {
-        const latest = scoreData.scorecard[scoreData.scorecard.length - 1];
-        if (latest) scoreText = `${latest.score}/${latest.wickets} (${latest.overs} ov)`;
-    } else if (match.score1?.inngsScore?.length > 0) {
-        const inn = match.score1.inngsScore[match.score1.inngsScore.length - 1];
-        scoreText = `${inn.runs}/${inn.wickets} (${inn.overs} ov)`;
-    }
+// ─── Build notification content ───────────────────────────────────
+function buildNotifContent(match, liveData) {
+    const src = liveData || match;
+    const teams = src.teams || match.teams || [];
+    const t1 = teams[0] || 'Team A';
+    const t2 = teams[1] || 'Team B';
+    const status = src.status || match.status || '';
+    const scores = src.score || match.score || [];
 
-    const isLive = status.toLowerCase().includes('live') ||
-        (match.matchInfo?.state || '').toLowerCase() === 'in progress';
-
-    // Upcoming: show IST time instead of GMT
-    const isUpcoming = status.toLowerCase().includes('yet') ||
-        status.toLowerCase().includes('upcoming') ||
-        (!scoreText && !isLive);
+    const isLive = src.matchStarted && !src.matchEnded;
+    const isUpcoming = !src.matchStarted;
 
     const emoji = isLive ? '🔴' : isUpcoming ? '🗓️' : '🏏';
     const title = `${emoji} ${t1} vs ${t2}`;
 
     let body;
-    if (scoreText) {
-        body = `${scoreText} • ${status}`;
-    } else if (isUpcoming && startTime) {
-        body = `Starts at ${toIST(startTime)} IST`;
+    const scoreLine = buildScoreLine(scores);
+    if (scoreLine) {
+        body = `${scoreLine}\n${status}`;
+    } else if (isUpcoming && src.dateTimeGMT) {
+        body = `Starts at ${toIST(src.dateTimeGMT)} IST`;
     } else {
         body = status || 'Tracking match...';
     }
@@ -166,14 +142,11 @@ function buildNotifContent(match, scoreData) {
     return { title, body };
 }
 
-// ─── Show / update the notification ──────────────────────────────
-async function showScoreNotification(matchId, match, scoreData) {
-    const { title, body } = buildNotifContent(match, scoreData);
+// ─── Show / update notification ───────────────────────────────────
+async function showScoreNotification(matchId, match, liveData) {
+    const { title, body } = buildNotifContent(match, liveData);
     const identifier = `match_score_${matchId}`;
-
-    // Dismiss old version first (to "update" it)
     try { await Notifications.dismissNotificationAsync(identifier); } catch (_) { }
-
     await Notifications.scheduleNotificationAsync({
         identifier,
         content: {
@@ -181,9 +154,9 @@ async function showScoreNotification(matchId, match, scoreData) {
             body,
             data: { matchId, type: 'score_tracker' },
             priority: 'default',
-            channelId: CHANNEL_ID,  // Android 8+ requires channel
+            channelId: CHANNEL_ID,
         },
-        trigger: null,  // fire immediately
+        trigger: null,
     });
 }
 
@@ -193,8 +166,8 @@ TaskManager.defineTask(BG_TASK_NAME, async () => {
         const ids = Object.keys(trackedMatches);
         for (const matchId of ids) {
             const { match } = trackedMatches[matchId];
-            const score = await fetchScore(matchId);
-            await showScoreNotification(matchId, match, score);
+            const liveData = await fetchMatchInfo(matchId);
+            await showScoreNotification(matchId, match, liveData);
         }
         return BackgroundFetch.BackgroundFetchResult.NewData;
     } catch {

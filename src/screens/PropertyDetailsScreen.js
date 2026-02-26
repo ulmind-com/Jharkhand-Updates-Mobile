@@ -134,14 +134,16 @@ export default function PropertyDetailsScreen() {
 
     const handleShare = async () => {
         try {
-            const propertyUrl = `https://jharkhandbiharupdates.com/properties/${propertyId}`;
+            const webUrl = `https://jharkhandupdates.com/properties/details/${property.id || property._id}`;
+            const snippet = (property.description || '').trim().slice(0, 100);
+            const priceStr = property.price ? ` — ${formatPrice(property.price)}` : '';
             await Share.share({
-                message: `Check out this property on InYourArea: ${property.title}\n\n${propertyUrl}`,
                 title: property.title,
-                url: propertyUrl // used for iOS
+                message: `${property.title}${priceStr}\n\n${snippet ? snippet + '...' : ''}\n\nRead more: ${webUrl}`,
+                url: webUrl,
             });
         } catch (error) {
-            console.log("Error sharing property:", error.message);
+            console.log('Error sharing property:', error.message);
         }
     };
 
@@ -170,7 +172,7 @@ export default function PropertyDetailsScreen() {
                 </TouchableOpacity>
                 <Text style={styles.headerTitle} numberOfLines={1}>Property Details</Text>
                 <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-                    <Ionicons name="share-social-outline" size={22} color={colors.text} />
+                    <Ionicons name="arrow-redo-outline" size={22} color={colors.text} />
                 </TouchableOpacity>
             </View>
 

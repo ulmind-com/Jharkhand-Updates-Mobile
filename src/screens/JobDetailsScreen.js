@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { Vibration, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Linking, Alert, KeyboardAvoidingView } from 'react-native';
+import { Vibration, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Linking, Alert, KeyboardAvoidingView, Share } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -255,7 +255,7 @@ export default function JobDetailsScreen() {
                 fetchedComments.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
                 fetchedComments.forEach(cmt => {
                     if (cmt.replies) {
-                       cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                        cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
                     }
                 });
                 setComments(fetchedComments);
@@ -364,6 +364,18 @@ export default function JobDetailsScreen() {
     const authorName = `${job.author?.firstName || 'User'} ${job.author?.lastName || ''}`.trim();
     const dateStr = new Date(job.createdAt).toLocaleDateString();
 
+    const handleShare = async () => {
+        try {
+            const webUrl = `https://jharkhandupdates.com/jobs/details/${job.id || job._id}`;
+            const snippet = (job.description || '').replace(/<[^>]*>?/gm, '').trim().slice(0, 100);
+            const applyLine = job.reglink ? `\nApply: ${job.reglink}` : '';
+            await Share.share({
+                title: job.title,
+                message: `${job.title}${job.company ? ` at ${job.company}` : ''}\n\n${snippet}...${applyLine}\n\nRead more: ${webUrl}`,
+            });
+        } catch (e) { /* dismissed */ }
+    };
+
     const isJobExpired = (deadline) => {
         if (!deadline) return false;
         return new Date() > new Date(deadline);
@@ -399,7 +411,9 @@ export default function JobDetailsScreen() {
                         <Ionicons name="arrow-back" size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Job Details</Text>
-                    <View style={{ width: 40 }} />
+                    <TouchableOpacity onPress={handleShare} style={styles.shareBtn} activeOpacity={0.8}>
+                        <Ionicons name="arrow-redo-outline" size={20} color="#fff" />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -544,6 +558,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
     backButton: { padding: 4 },
     headerTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
+    shareBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', elevation: 2 },
 
     scrollContent: { padding: 16, paddingBottom: 40 },
 

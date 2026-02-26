@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Alert, KeyboardAvoidingView, Vibration } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Alert, KeyboardAvoidingView, Vibration, Share } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -259,7 +259,7 @@ export default function StateNewsDetailsScreen() {
                 fetchedComments.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
                 fetchedComments.forEach(cmt => {
                     if (cmt.replies) {
-                       cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                        cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
                     }
                 });
                 setComments(fetchedComments);
@@ -292,7 +292,7 @@ export default function StateNewsDetailsScreen() {
                 await axios.post(`${BASE_URL}/comments/state-news/${newsId}`, payload, { headers });
                 setReplyingTo(null);
 
-                
+
 
                 Toast.show({ type: 'success', text1: 'Comment added!' });
             }
@@ -372,6 +372,17 @@ export default function StateNewsDetailsScreen() {
     const dateStr = new Date(news.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
     const isVideo = news.imageUrls?.[0]?.match(/\.(mp4|webm|ogg)$/i) || news.imageUrls?.[0]?.includes('video');
 
+    const handleShare = async () => {
+        try {
+            const webUrl = `https://jharkhandupdates.com/statenews/details/${news.id || news._id}`;
+            const snippet = (news.content || '').replace(/<[^>]*>?/gm, '').trim().slice(0, 100);
+            await Share.share({
+                title: news.title,
+                message: `${news.title}\n\n${snippet}...\n\nRead more: ${webUrl}`,
+            });
+        } catch (e) { /* user dismissed */ }
+    };
+
     const getRootComments = (comments) => {
         if (!comments) return [];
         const replyIds = new Set();
@@ -402,6 +413,9 @@ export default function StateNewsDetailsScreen() {
                         <Ionicons name="arrow-back" size={24} color={colors.primary} />
                         <Text style={styles.backText}>Back</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity onPress={handleShare} style={styles.shareBtn} activeOpacity={0.8}>
+                        <Ionicons name="arrow-redo-outline" size={20} color="#fff" />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -411,14 +425,17 @@ export default function StateNewsDetailsScreen() {
                         animate={{ opacity: 1, translateY: 0 }}
                         transition={{ type: 'timing', duration: 400 }}
                     >
-                        {/* Media */}
+                        {/* ① Title — always first */}
+                        <Text style={styles.newsTitle}>{news.title.replace(/<[^>]*>?/gm, "")}</Text>
+
+                        {/* ② Media */}
                         <View style={styles.mediaContainer}>
                             {news.imageUrls?.length > 0 && !isVideo ? (
                                 <TouchableOpacity activeOpacity={0.9} onPress={() => setIsImageViewVisible(true)}>
                                     <Image
                                         source={{ uri: news.imageUrls[0] }}
                                         style={[styles.newsImage, { aspectRatio: imageRatio || 1.5 }]}
-                                        resizeMode="contain"
+                                        resizeMode="cover"
                                     />
                                 </TouchableOpacity>
                             ) : (
@@ -446,19 +463,15 @@ export default function StateNewsDetailsScreen() {
                             </View>
                         </View>
 
-                        {/* Location & Share */}
+                        {/* Location */}
                         <View style={styles.metaRow}>
                             <View style={styles.locationContainer}>
                                 <Ionicons name="location-outline" size={16} color={colors.primary} />
                                 <Text style={styles.locationText}>{news.state || 'Jharkhand'}</Text>
                             </View>
-                            <TouchableOpacity style={styles.shareButton}>
-                                <Ionicons name="share-social" size={20} color="#fff" />
-                            </TouchableOpacity>
                         </View>
 
-                        {/* Title & Content */}
-                        <Text style={styles.newsTitle}>{news.title.replace(/<[^>]*>?/gm, "")}</Text>
+                        {/* Content */}
 
                         <Text style={styles.newsContent} numberOfLines={seeMore ? undefined : 8}>
                             {news.content.replace(/<[^>]*>?/gm, "").trim()}
@@ -528,7 +541,7 @@ export default function StateNewsDetailsScreen() {
                                 if (Platform.OS !== 'web') {
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                                 }
-                                
+
                                 handleAddComment();
                             }}
                             disabled={!commentText.trim()}
@@ -553,9 +566,10 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
     container: { flex: 1, backgroundColor: colors.background },
 
-    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, elevation: 2, borderBottomWidth: 1, borderBottomColor: colors.border },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, elevation: 2, borderBottomWidth: 1, borderBottomColor: colors.border },
     backButton: { flexDirection: 'row', alignItems: 'center' },
     backText: { fontSize: 16, fontFamily: 'Outfit_600SemiBold', color: colors.primary, marginLeft: 4 },
+    shareBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', elevation: 2 },
 
     scrollContent: { padding: 16, paddingBottom: 40 },
 
@@ -579,7 +593,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     shareButton: { backgroundColor: colors.primary, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', elevation: 2 },
 
     newsTitle: { fontSize: 22, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 16, lineHeight: 32 },
-    newsContent: { fontSize: 16, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 26 },
+    newsContent: { fontSize: 16, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 26, textAlign: 'justify' },
 
     seeMoreBtn: { marginTop: 12 },
     seeMoreText: { color: colors.primary, fontFamily: 'Outfit_700Bold', fontSize: 15 },
@@ -595,7 +609,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     commentHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
     commentAuthor: { fontFamily: 'Outfit_700Bold', fontSize: 14, color: colors.text, flexDirection: 'row', alignItems: 'center' },
     commentDate: { fontSize: 11, fontFamily: 'Outfit_400Regular', color: colors.textDim },
-    commentContent: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 22 },
+    commentContent: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 22, textAlign: 'justify' },
 
     commentActions: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 16 },
     replyButton: { flexDirection: 'row', alignItems: 'center' },

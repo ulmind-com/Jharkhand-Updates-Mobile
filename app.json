@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#004d2e"
     },
     "ios": {
       "supportsTablet": true,
@@ -85,11 +85,7 @@
             }
           }
         },
-<<<<<<< HEAD
         "projectId": "f8eecad2-168a-44bd-ae48-b7f9a217f225"
-=======
-        "projectId": "67857840-15cb-4631-85ba-5993161a402a"
->>>>>>> 3557da6429e92bbf1a983336d65816d05e8ca8a0
       }
     }
   }

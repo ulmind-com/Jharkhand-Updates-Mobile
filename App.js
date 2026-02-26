@@ -1,5 +1,5 @@
-import 'react-native-gesture-handler';
-import React, { useEffect } from 'react';
+﻿import 'react-native-gesture-handler';
+import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { LogLevel, OneSignal } from 'react-native-onesignal';
@@ -34,6 +34,8 @@ import HistoryScreen from './src/screens/HistoryScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import EmailServiceScreen from './src/screens/EmailServiceScreen';
 import LiveSportsScreen from './src/screens/LiveSportsScreen';
+import CricketScorecardScreen from './src/screens/CricketScorecardScreen';
+import SplashScreenAnimation from './src/screens/SplashScreenAnimation';
 import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
 import PendingApprovalsScreen from './src/screens/PendingApprovalsScreen';
 import PendingCategoryListScreen from './src/screens/PendingCategoryListScreen';
@@ -53,6 +55,7 @@ export default function App() {
     Outfit_600SemiBold,
     Outfit_700Bold,
   });
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -106,8 +109,12 @@ export default function App() {
     setupNotificationChannel();
   }, []);
 
-  if (!fontsLoaded) {
-    return null; // or a custom splash screen component if needed
+  if (!fontsLoaded || showSplash) {
+    return (
+      <SplashScreenAnimation
+        onFinish={() => setShowSplash(false)}
+      />
+    );
   }
 
   return (
@@ -137,6 +144,7 @@ export default function App() {
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="EmailService" component={EmailServiceScreen} />
               <Stack.Screen name="LiveSports" component={LiveSportsScreen} />
+              <Stack.Screen name="CricketScorecard" component={CricketScorecardScreen} />
               <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
               <Stack.Screen name="PendingApprovals" component={PendingApprovalsScreen} />
               <Stack.Screen name="PendingCategoryList" component={PendingCategoryListScreen} />
@@ -155,3 +163,4 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+

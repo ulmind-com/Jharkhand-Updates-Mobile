@@ -148,7 +148,7 @@ export default function JobsScreen() {
                     </View>
 
                     <View style={styles.buttonContainer}>
-                        <TouchableOpacity style={[styles.primaryButton, expired && styles.buttonDisabled]} disabled={expired} onPress={() => navigation.navigate('JobDetails', { jobId: item.id })}>
+                        <TouchableOpacity style={[styles.primaryButton, expired && styles.buttonDisabled]} onPress={() => navigation.navigate('JobDetails', { jobId: item.id })}>
                             <Text style={styles.primaryButtonText}>View Details</Text>
                         </TouchableOpacity>
 

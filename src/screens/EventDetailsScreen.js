@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { Vibration, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Linking, Alert, KeyboardAvoidingView } from 'react-native';
+import { Vibration, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Linking, Alert, KeyboardAvoidingView, Share } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -382,6 +382,19 @@ export default function EventDetailsScreen() {
 
     const isPastEvent = event.eventDate && new Date() > new Date(event.eventDate);
 
+    const handleShare = async () => {
+        try {
+            const webUrl = `https://jharkhandupdates.com/events/details/${event.id || event._id}`;
+            const snippet = (event.description || '').replace(/<[^>]*>?/gm, '').trim().slice(0, 100);
+            const dateInfo = eventDateStr !== 'TBA' ? `\nDate: ${eventDateStr}${eventTimeStr ? ' at ' + eventTimeStr : ''}` : '';
+            const locationInfo = event.location ? `\nVenue: ${event.location}` : '';
+            await Share.share({
+                title: event.title,
+                message: `${event.title}${dateInfo}${locationInfo}\n\n${snippet}...\n\nRead more: ${webUrl}`,
+            });
+        } catch (e) { /* dismissed */ }
+    };
+
     const getRootComments = (commentsArray) => {
         if (!commentsArray) return [];
         const replyIds = new Set();
@@ -410,7 +423,9 @@ export default function EventDetailsScreen() {
                         <Ionicons name="arrow-back" size={24} color={colors.text} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Event Details</Text>
-                    <View style={{ width: 40 }} />
+                    <TouchableOpacity onPress={handleShare} style={styles.shareBtn} activeOpacity={0.8}>
+                        <Ionicons name="arrow-redo-outline" size={20} color="#fff" />
+                    </TouchableOpacity>
                 </View>
 
                 <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -548,6 +563,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
     backButton: { padding: 4 },
     headerTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
+    shareBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', elevation: 2 },
 
     scrollContent: { padding: 16, paddingBottom: 40 },
 

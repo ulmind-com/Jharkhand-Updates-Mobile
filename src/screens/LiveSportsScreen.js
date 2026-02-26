@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-    Dimensions, RefreshControl, Modal, FlatList, Image, Alert
+    Dimensions, RefreshControl, Modal, FlatList, Image, Alert, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,22 +9,30 @@ import { MotiView } from 'moti';
 import { Video, ResizeMode } from 'expo-av';
 import Svg, { Path } from 'react-native-svg';
 import { ThemeContext } from '../context/ThemeContext';
+import { useNavigation } from '@react-navigation/native';
 import TopHeader from '../components/TopHeader';
+import { cricketFetch, BASE_URL, filterAndSortMatches } from '../services/CricketApi';
+import {
+    fetchFootballLive, fetchFootballUpcoming, fetchFootballRecent, fetchFootballMatch,
+    fbIsLive, fbIsUpcoming, fbStatusLabel, fbScoreText, fbToIST, getCompData,
+} from '../services/FootballApi';
 import {
     startTracking,
     stopTracking,
     isTracking,
+    setupNotificationChannel,
+    requestNotificationPermission,
 } from '../services/ScoreNotificationService';
+import * as Notifications from 'expo-notifications';
 
 const { width, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Local video assets (dark BG videos blend in on dark container)
+// ─── Video assets ─────────────────────────────────
 const VIDEOS = {
     cricket: require('../../assets/videos/cricket.mp4'),
     football: require('../../assets/videos/football.mp4'),
 };
 
-// Looping muted sport video widget
 const SportVideo = ({ sport, size = 80, bgColor = '#121212' }) => (
     <View style={{ width: size, height: size, backgroundColor: bgColor, borderRadius: size / 2, overflow: 'hidden' }}>
         <Video
@@ -39,17 +47,19 @@ const SportVideo = ({ sport, size = 80, bgColor = '#121212' }) => (
     </View>
 );
 
-const RAPID_API_KEY = '85b090fb5amshd3e775797ef9765p148b69jsnbc269bf67b6a';
-const RAPID_API_HOST = 'cricbuzz-cricket.p.rapidapi.com';
-const BASE_URL = 'https://cricbuzz-cricket.p.rapidapi.com';
+// ─── In-memory cache (5-min TTL) to protect daily API limits ────────
+const CACHE_TTL = 5 * 60 * 1000;
+const _cache = {};
+function getCached(key) {
+    const entry = _cache[key];
+    if (!entry) return null;
+    if (Date.now() - entry.ts > CACHE_TTL) return null;
+    return entry.data;
+}
+function setCache(key, data) { _cache[key] = { data, ts: Date.now() }; }
+function getStaleCached(key) { return _cache[key] ? _cache[key].data : null; }
 
-const apiHeaders = {
-    'x-rapidapi-key': RAPID_API_KEY,
-    'x-rapidapi-host': RAPID_API_HOST,
-};
-
-// ─── Team flag / badge lookup ────────────────────
-// Returns a flag emoji for international teams, or a colored short-name badge for clubs
+// ─── Country flags ────────────────────────────────
 const COUNTRY_FLAGS = {
     'india': '🇮🇳', 'australia': '🇦🇺', 'england': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
     'pakistan': '🇵🇰', 'south africa': '🇿🇦', 'new zealand': '🇳🇿',
@@ -58,8 +68,6 @@ const COUNTRY_FLAGS = {
     'united states': '🇺🇸', 'usa': '🇺🇸', 'scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
     'netherlands': '🇳🇱', 'namibia': '🇳🇦', 'oman': '🇴🇲',
     'nepal': '🇳🇵', 'uae': '🇦🇪', 'kenya': '🇰🇪',
-    'canada': '🇨🇦', 'hong kong': '🇭🇰', 'singapore': '🇸🇬',
-    'png': '🇵🇬', 'papua new guinea': '🇵🇬', 'bermuda': '🇧🇲',
 };
 const IPL_FLAGS = {
     'mumbai indians': { bg: '#004BA0', short: 'MI' },
@@ -73,58 +81,71 @@ const IPL_FLAGS = {
     'lucknow super giants': { bg: '#A4C8E1', short: 'LSG', textColor: '#000' },
     'gujarat titans': { bg: '#1C2B58', short: 'GT' },
 };
-
 const TeamFlag = ({ teamName = '', size = 26 }) => {
     const key = teamName.toLowerCase();
-    // Try to match country flag
-    const flag = COUNTRY_FLAGS[key] ||
-        Object.entries(COUNTRY_FLAGS).find(([k]) => key.includes(k))?.[1];
+    const found = Object.entries(COUNTRY_FLAGS).find(([k]) => key.includes(k));
+    const flag = COUNTRY_FLAGS[key] || (found ? found[1] : null);
     if (flag) return <Text style={{ fontSize: size - 4 }}>{flag}</Text>;
-    // Try IPL / franchise club
     const iplEntry = Object.entries(IPL_FLAGS).find(([k]) => key.includes(k));
     if (iplEntry) {
         const [, ipl] = iplEntry;
         return (
-            <View style={{
-                width: size, height: size, borderRadius: 6,
-                backgroundColor: ipl.bg, alignItems: 'center', justifyContent: 'center',
-                paddingHorizontal: 2,
-            }}>
+            <View style={{ width: size, height: size, borderRadius: 6, backgroundColor: ipl.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 }}>
                 <Text style={{ fontSize: 7, fontFamily: 'Outfit_700Bold', color: ipl.textColor || '#fff' }} numberOfLines={1}>{ipl.short}</Text>
             </View>
         );
     }
-    // Generic bat icon fallback
     return <Text style={{ fontSize: size - 4 }}>🏏</Text>;
 };
 
-// ─── Status color map ───────────────────────────
-const getStatusColor = (status = '') => {
+// ─── Team image badge ─────────────────────────────
+const TeamImg = ({ img, name, size = 28 }) => {
+    const [err, setErr] = useState(false);
+    if (!err && img) {
+        return <Image source={{ uri: img }} style={{ width: size, height: size, borderRadius: size / 2 }} onError={() => setErr(true)} />;
+    }
+    return <TeamFlag teamName={name} size={size} />;
+};
+
+// ─── Helpers ──────────────────────────────────────
+const getStatusColor = (status = '', matchStarted, matchEnded) => {
     const s = status.toLowerCase();
-    if (s.includes('live') || s.includes('in progress')) return '#22c55e';
-    if (s.includes('won') || s.includes('complete')) return '#3b82f6';
-    if (s.includes('upcoming') || s.includes('yet')) return '#f59e0b';
+    if (matchStarted && !matchEnded) return '#22c55e';  // live green
+    if (s.includes('won') || s.includes('draw') || matchEnded) return '#3b82f6';
+    if (!matchStarted) return '#f59e0b';
     return '#6b7280';
 };
 
-const getMatchTypeLabel = (matchType) => {
-    const t = (matchType || '').toUpperCase();
-    if (t.includes('TEST')) return 'TEST';
-    if (t.includes('ODI')) return 'ODI';
-    if (t.includes('T20')) return 'T20';
-    if (t.includes('IPL')) return 'IPL';
-    return matchType || 'MATCH';
+const getMatchTypeLabel = (t = '') => {
+    const u = t.toUpperCase();
+    if (u.includes('TEST')) return 'TEST';
+    if (u.includes('ODI')) return 'ODI';
+    if (u.includes('T20')) return 'T20';
+    return t || 'MATCH';
 };
 
-const matchTypeColor = (type) => {
-    const t = (type || '').toUpperCase();
+const matchTypeColor = (type = '') => {
+    const t = type.toUpperCase();
     if (t.includes('TEST')) return ['#7c3aed', '#a855f7'];
     if (t.includes('ODI')) return ['#0369a1', '#0ea5e9'];
-    if (t.includes('T20') || t.includes('IPL')) return ['#b45309', '#f59e0b'];
+    if (t.includes('T20')) return ['#b45309', '#f59e0b'];
     return ['#333333', '#6b7280'];
 };
 
-// ─── Skeleton Card ───────────────────────────────
+// Convert GMT datestring to IST display
+const toIST = (dateTimeGMT) => {
+    if (!dateTimeGMT) return '';
+    try {
+        const d = new Date(dateTimeGMT + 'Z');
+        return d.toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            day: '2-digit', month: 'short',
+            hour: '2-digit', minute: '2-digit', hour12: true,
+        });
+    } catch (e) { return ''; }
+};
+
+// ─── Skeleton ─────────────────────────────────────
 const SkeletonCard = ({ isDarkMode }) => {
     const bg = isDarkMode ? '#1E1E1E' : '#f3f4f6';
     const shimmer = isDarkMode ? '#333333' : '#e5e7eb';
@@ -151,78 +172,118 @@ const SkeletonCard = ({ isDarkMode }) => {
     );
 };
 const sk = StyleSheet.create({
-    card: { backgroundColor: '#f3f4f6', borderRadius: 20, padding: 18, marginBottom: 14, gap: 8 },
+    card: { borderRadius: 20, padding: 18, marginBottom: 14, gap: 8 },
     topRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    badge: { width: 50, height: 18, backgroundColor: '#e5e7eb', borderRadius: 6 },
-    status: { width: 80, height: 14, backgroundColor: '#e5e7eb', borderRadius: 4 },
+    badge: { width: 50, height: 18, borderRadius: 6 },
+    status: { width: 80, height: 14, borderRadius: 4 },
     teamRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    teamName: { width: '60%', height: 16, backgroundColor: '#e5e7eb', borderRadius: 4 },
-    score: { width: 80, height: 20, backgroundColor: '#e5e7eb', borderRadius: 6 },
+    teamName: { width: '60%', height: 16, borderRadius: 4 },
+    score: { width: 80, height: 20, borderRadius: 6 },
 });
 
-// ─── Match Card ──────────────────────────────────
-const MatchCard = ({ match, onPress, isDarkMode, colors }) => {
-    const matchId = String(match.id || match.matchInfo?.matchId || '');
-    const [tracking, setTracking] = useState(() => isTracking(matchId));
-    const typeColors = matchTypeColor(match.matchType);
-    const statusColor = getStatusColor(match.status);
-    const isLive = (match.status || '').toLowerCase().includes('live') ||
-        (match.matchInfo?.state || '').toLowerCase() === 'in progress';
+// ─── Bell Button with pulse animation ─────────────
+const BellButton = ({ tracking, onPress }) => {
+    const pulseAnim = useRef(new Animated.Value(1)).current;
 
-    const t1 = match.team1 || match.matchInfo?.team1 || {};
-    const t2 = match.team2 || match.matchInfo?.team2 || {};
-    const score1 = match.score1 || match.teamScore?.team1score || null;
-    const score2 = match.score2 || match.teamScore?.team2score || null;
-    const venue = match.venue || match.matchInfo?.groundName || '';
-    const series = match.series || match.seriesName || '';
-    const status = match.status || match.matchInfo?.status || '';
-
-    const formatScore = (sc) => {
-        if (!sc?.inngsScore) return null;
-        const inns = sc.inngsScore;
-        if (!inns?.length) return null;
-        const latest = inns[inns.length - 1];
-        return `${latest.runs}/${latest.wickets}`;
-    };
-    const formatOvers = (sc) => {
-        if (!sc?.inngsScore?.length) return null;
-        const latest = sc.inngsScore[sc.inngsScore.length - 1];
-        return `(${latest.overs} ov)`;
-    };
-
-    const sc1Display = score1 ? formatScore(score1) : null;
-    const sc2Display = score2 ? formatScore(score2) : null;
-
-    const formatStatusToIST = (statusStr = '', epochMs) => {
-        let s = statusStr;
-        if (s.toUpperCase().includes('GMT')) {
-            if (epochMs) {
-                const d = new Date(Number(epochMs));
-                const istTime = d.toLocaleString('en-IN', {
-                    timeZone: 'Asia/Kolkata',
-                    hour: '2-digit', minute: '2-digit', hour12: true
-                });
-                return s.replace(/.*GMT/gi, `at ${istTime} IST`);
-            }
-            return s.replace(/GMT/gi, 'IST');
+    useEffect(() => {
+        if (tracking) {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(pulseAnim, { toValue: 1.2, duration: 600, useNativeDriver: true }),
+                    Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+                ])
+            ).start();
+        } else {
+            pulseAnim.setValue(1);
         }
-        return s;
-    };
+    }, [tracking]);
 
-    const displayStatus = formatStatusToIST(status, match.matchInfo?.startDate);
+    return (
+        <TouchableOpacity onPress={onPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={bell.wrap}>
+            <Animated.View style={[bell.btn, tracking && bell.btnActive, { transform: [{ scale: pulseAnim }] }]}>
+                {tracking && (
+                    <Animated.View style={[bell.ring, { opacity: pulseAnim.interpolate({ inputRange: [1, 1.2], outputRange: [0.5, 0] }) }]} />
+                )}
+                <Ionicons
+                    name={tracking ? 'notifications' : 'notifications-outline'}
+                    size={14}
+                    color={tracking ? '#fff' : '#006A4E'}
+                />
+                {tracking && <View style={bell.dot} />}
+            </Animated.View>
+            <Text style={[bell.label, { color: tracking ? '#059669' : '#9ca3af' }]}>
+                {tracking ? 'Tracking' : 'Notify'}
+            </Text>
+        </TouchableOpacity>
+    );
+};
+const bell = StyleSheet.create({
+    wrap: { alignItems: 'center', gap: 2 },
+    btn: {
+        width: 34, height: 34, borderRadius: 17,
+        backgroundColor: '#ecfdf5',
+        borderWidth: 1.5, borderColor: '#6ee7b7',
+        alignItems: 'center', justifyContent: 'center',
+    },
+    btnActive: {
+        backgroundColor: '#059669',
+        borderColor: '#047857',
+        shadowColor: '#059669',
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 6,
+    },
+    ring: {
+        position: 'absolute',
+        width: 50, height: 50, borderRadius: 25,
+        borderWidth: 2, borderColor: '#059669',
+    },
+    dot: {
+        position: 'absolute', top: 6, right: 6,
+        width: 7, height: 7, borderRadius: 3.5,
+        backgroundColor: '#fbbf24',
+        borderWidth: 1.5, borderColor: '#fff',
+    },
+    label: { fontSize: 9, fontFamily: 'Outfit_600SemiBold' },
+});
+
+// ─── Score Display from cricketdata.org score[] ───
+// score = [{r, w, o, inning}, ...]
+const getScoreDisplay = (scores = [], teamName = '') => {
+    // find inning(s) belonging to this team
+    const key = teamName.toLowerCase();
+    const teamInns = scores.filter(s => (s.inning || '').toLowerCase().includes(key));
+    if (teamInns.length === 0) return null;
+    return teamInns.map(s => `${s.r}/${s.w} (${s.o} ov)`).join('  |  ');
+};
+
+// ─── Match Card ───────────────────────────────────
+const MatchCard = ({ match, onPress, isDarkMode }) => {
+    const matchId = match.id;
+    const [tracking, setTracking] = useState(() => isTracking(matchId));
+
+    const team1Name = (match.teams && match.teams[0]) ? match.teams[0] : 'Team A';
+    const team2Name = (match.teams && match.teams[1]) ? match.teams[1] : 'Team B';
+    const team1Info = match.teamInfo ? match.teamInfo.find(t => t.name.toLowerCase().includes(team1Name.toLowerCase().slice(0, 4))) : null;
+    const team2Info = match.teamInfo ? match.teamInfo.find(t => t.name.toLowerCase().includes(team2Name.toLowerCase().slice(0, 4))) : null;
+
+    const isLive = match.matchStarted && !match.matchEnded;
+    const isUpcoming = !match.matchStarted;
+    const statusColor = getStatusColor(match.status, match.matchStarted, match.matchEnded);
+    const typeColors = matchTypeColor(match.matchType);
+
+    const sc1 = getScoreDisplay(match.score || [], team1Name);
+    const sc2 = getScoreDisplay(match.score || [], team2Name);
 
     const handleBellPress = async () => {
-        if (!matchId) return;
         if (tracking) {
             await stopTracking(matchId);
             setTracking(false);
         } else {
             const ok = await startTracking(match);
             if (ok === false) {
-                Alert.alert(
-                    'Permission Required',
-                    'Please allow notifications in Settings to track live scores.',
-                );
+                Alert.alert('Permission Required', 'Please allow notifications to track live scores.');
             } else {
                 setTracking(true);
             }
@@ -230,7 +291,9 @@ const MatchCard = ({ match, onPress, isDarkMode, colors }) => {
     };
 
     return (
-        <TouchableOpacity activeOpacity={0.92} onPress={onPress} style={[mc.card, { backgroundColor: isDarkMode ? '#1E1E1E' : '#fff', borderColor: isLive ? '#22c55e' : (isDarkMode ? '#334155' : '#f0f0f0'), borderWidth: isLive ? 1.5 : 1 }]}>
+        <TouchableOpacity activeOpacity={0.92} onPress={onPress}
+            style={[mc.card, { backgroundColor: isDarkMode ? '#1E1E1E' : '#fff', borderColor: isLive ? '#22c55e' : (isDarkMode ? '#2C3147' : '#f0f0f0'), borderWidth: isLive ? 1.5 : 1 }]}>
+
             {isLive && (
                 <MotiView
                     from={{ opacity: 0.4 }} animate={{ opacity: 1 }}
@@ -239,67 +302,57 @@ const MatchCard = ({ match, onPress, isDarkMode, colors }) => {
                 />
             )}
 
-            {/* Header row */}
+            {/* Header */}
             <View style={mc.headerRow}>
                 <View style={[mc.typeBadge, { backgroundColor: typeColors[0] }]}>
                     <Text style={mc.typeTxt}>{getMatchTypeLabel(match.matchType)}</Text>
                 </View>
-                {series ? <Text style={[mc.seriesTxt, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]} numberOfLines={1}>{series}</Text> : null}
+                {isLive && (
+                    <View style={mc.liveBadge}>
+                        <View style={mc.liveDot} />
+                        <Text style={mc.liveTxt}>LIVE</Text>
+                    </View>
+                )}
+                <Text style={[mc.seriesTxt, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]} numberOfLines={1}>
+                    {match.name ? match.name.split(',').slice(1).join(',').trim() : ''}
+                </Text>
                 <View style={[mc.statusDot, { backgroundColor: statusColor }]} />
             </View>
 
             {/* Team 1 */}
             <View style={mc.teamRow}>
                 <View style={mc.teamLeft}>
-                    <TeamFlag teamName={t1.teamName || t1.name || ''} size={28} />
-                    <Text style={[mc.teamName, { color: isDarkMode ? '#f1f5f9' : '#111827' }]} numberOfLines={1}>{t1.teamName || t1.name || 'Team A'}</Text>
-                    {match.battingTeam === t1.teamId && <View style={mc.batIcon} />}
+                    <TeamImg img={team1Info ? team1Info.img : null} name={team1Name} size={28} />
+                    <Text style={[mc.teamName, { color: isDarkMode ? '#f1f5f9' : '#111827' }]} numberOfLines={1}>{team1Name}</Text>
                 </View>
-                {sc1Display ? (
-                    <View style={mc.scoreBox}>
-                        <Text style={[mc.scoreMain, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>{sc1Display}</Text>
-                        <Text style={[mc.scoreOvers, { color: isDarkMode ? '#64748b' : '#6b7280' }]}>{formatOvers(score1)}</Text>
-                    </View>
-                ) : <Text style={mc.vsText}>vs</Text>}
+                {sc1 ? (
+                    <Text style={[mc.scoreText, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>{sc1}</Text>
+                ) : (
+                    <Text style={mc.vsText}>vs</Text>
+                )}
             </View>
 
             {/* Team 2 */}
             <View style={[mc.teamRow, { marginTop: 8 }]}>
                 <View style={mc.teamLeft}>
-                    <TeamFlag teamName={t2.teamName || t2.name || ''} size={28} />
-                    <Text style={[mc.teamName, { color: isDarkMode ? '#f1f5f9' : '#111827' }]} numberOfLines={1}>{t2.teamName || t2.name || 'Team B'}</Text>
-                    {match.battingTeam === t2.teamId && <View style={mc.batIcon} />}
+                    <TeamImg img={team2Info ? team2Info.img : null} name={team2Name} size={28} />
+                    <Text style={[mc.teamName, { color: isDarkMode ? '#f1f5f9' : '#111827' }]} numberOfLines={1}>{team2Name}</Text>
                 </View>
-                {sc2Display ? (
-                    <View style={mc.scoreBox}>
-                        <Text style={[mc.scoreMain, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>{sc2Display}</Text>
-                        <Text style={[mc.scoreOvers, { color: isDarkMode ? '#64748b' : '#6b7280' }]}>{formatOvers(score2)}</Text>
-                    </View>
-                ) : null}
+                {sc2 && <Text style={[mc.scoreText, { color: isDarkMode ? '#f8fafc' : '#111827' }]}>{sc2}</Text>}
             </View>
 
-            {/* Divider */}
             <View style={[mc.divider, { backgroundColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]} />
 
             {/* Footer */}
             <View style={mc.footer}>
                 <View style={mc.statusRow}>
                     <View style={[mc.statusDot2, { backgroundColor: statusColor }]} />
-                    <Text style={[mc.statusTxt, { color: statusColor }]} numberOfLines={2}>{displayStatus}</Text>
+                    <Text style={[mc.statusTxt, { color: statusColor }]} numberOfLines={2}>
+                        {isUpcoming ? `Starts: ${toIST(match.dateTimeGMT)} IST` : match.status}
+                    </Text>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    {/* Bell button */}
-                    <TouchableOpacity
-                        onPress={handleBellPress}
-                        style={[mc.bellBtn, tracking && mc.bellBtnActive]}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                        <Ionicons
-                            name={tracking ? 'notifications' : 'notifications-outline'}
-                            size={15}
-                            color={tracking ? '#fff' : '#006A4E'}
-                        />
-                    </TouchableOpacity>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <BellButton tracking={tracking} onPress={handleBellPress} />
                     <View style={[mc.scoreCardBtn, { backgroundColor: isDarkMode ? '#2C2C2C' : '#eff6ff' }]}>
                         <Text style={mc.scoreCardTxt}>Scorecard</Text>
                         <Ionicons name="chevron-forward" size={12} color="#3b82f6" />
@@ -310,305 +363,520 @@ const MatchCard = ({ match, onPress, isDarkMode, colors }) => {
     );
 };
 const mc = StyleSheet.create({
-    card: { backgroundColor: '#fff', borderRadius: 20, padding: 18, marginBottom: 14, elevation: 3, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, borderWidth: 1, borderColor: '#f0f0f0', overflow: 'hidden' },
-    liveCard: { borderColor: '#bbf7d0', borderWidth: 1.5 },
+    card: { borderRadius: 20, padding: 18, marginBottom: 14, elevation: 3, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, overflow: 'hidden' },
     livePulse: { position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: '#22c55e', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
-    headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+    headerRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
     typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
     typeTxt: { color: '#fff', fontSize: 10, fontFamily: 'Outfit_700Bold', letterSpacing: 0.5 },
-    seriesTxt: { flex: 1, fontSize: 11, fontFamily: 'Outfit_500Medium', color: '#6b7280' },
+    liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fee2e2', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ef4444' },
+    liveTxt: { fontSize: 9, fontFamily: 'Outfit_700Bold', color: '#ef4444', letterSpacing: 0.5 },
+    seriesTxt: { flex: 1, fontSize: 10, fontFamily: 'Outfit_500Medium' },
     statusDot: { width: 8, height: 8, borderRadius: 4, marginLeft: 'auto' },
     teamRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     teamLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
-    teamFlag: { fontSize: 20 },
-    teamName: { fontSize: 15, fontFamily: 'Outfit_700Bold', color: '#111827', flex: 1 },
-    batIcon: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#f59e0b' },
-    scoreBox: { alignItems: 'flex-end' },
-    scoreMain: { fontSize: 18, fontFamily: 'Outfit_800ExtraBold', color: '#111827' },
-    scoreOvers: { fontSize: 11, fontFamily: 'Outfit_400Regular', color: '#6b7280' },
+    teamName: { fontSize: 14, fontFamily: 'Outfit_700Bold', flex: 1 },
+    scoreText: { fontSize: 15, fontFamily: 'Outfit_800ExtraBold' },
     vsText: { fontSize: 13, fontFamily: 'Outfit_600SemiBold', color: '#d1d5db' },
-    divider: { height: 1, backgroundColor: '#f3f4f6', marginVertical: 12 },
-    footer: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+    divider: { height: 1, marginVertical: 12 },
+    footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     statusRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, flex: 1 },
     statusDot2: { width: 7, height: 7, borderRadius: 3.5, marginTop: 3, flexShrink: 0 },
-    statusTxt: { fontSize: 12, fontFamily: 'Outfit_600SemiBold', flex: 1, lineHeight: 18 },
-    scoreCardBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+    statusTxt: { fontSize: 11, fontFamily: 'Outfit_600SemiBold', flex: 1, lineHeight: 17 },
+    scoreCardBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
     scoreCardTxt: { fontSize: 11, fontFamily: 'Outfit_700Bold', color: '#3b82f6' },
-    bellBtn: {
-        width: 30, height: 30, borderRadius: 15,
-        backgroundColor: '#ecfdf5',
-        borderWidth: 1, borderColor: '#6ee7b7',
-        alignItems: 'center', justifyContent: 'center',
-    },
-    bellBtnActive: {
-        backgroundColor: '#006A4E',
-        borderColor: '#006A4E',
-    },
 });
 
-// ─── Scorecard Modal ─────────────────────────────
-const ScorecardModal = ({ visible, matchId, matchTitle, onClose, isDarkMode }) => {
-    const [data, setData] = useState(null);
+// ─── Football Bell Button ─────────────────────────────────────────
+const FbBellButton = ({ match, isDarkMode }) => {
+    const [tracking, setTracking] = useState(false);
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        if (tracking) {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(pulseAnim, { toValue: 1.5, duration: 800, useNativeDriver: true }),
+                    Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+                ])
+            ).start();
+        } else {
+            pulseAnim.setValue(1);
+        }
+    }, [tracking]);
+
+    const toggle = async () => {
+        if (tracking) {
+            stopFbTracking(match.id);
+            setTracking(false);
+        } else {
+            const ok = await startFbTracking(match);
+            setTracking(!!ok);
+        }
+    };
+
+    return (
+        <TouchableOpacity onPress={toggle} style={{ alignItems: 'center', width: 44 }}>
+            {tracking && (
+                <Animated.View style={{
+                    position: 'absolute', top: -4, width: 32, height: 32, borderRadius: 16,
+                    borderWidth: 2, borderColor: '#22c55e', opacity: 0.6,
+                    transform: [{ scale: pulseAnim }],
+                }} />
+            )}
+            <Ionicons name={tracking ? 'notifications' : 'notifications-outline'} size={20} color={tracking ? '#22c55e' : isDarkMode ? '#64748b' : '#9ca3af'} />
+            {tracking && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22c55e', marginTop: 2 }} />}
+        </TouchableOpacity>
+    );
+};
+
+// ─── Football Notification Service (in-module) ──────────────────────
+const _fbTracked = {};
+
+async function startFbTracking(match) {
+    await setupNotificationChannel();
+    const ok = await requestNotificationPermission();
+    if (!ok) return false;
+
+    const id = String(match.id);
+    if (_fbTracked[id]) return true;
+
+    // Show initial notification immediately
+    await _showFbNotif(id, match, null);
+
+    // Poll every 60s for live score updates
+    const intervalId = setInterval(async () => {
+        try {
+            const json = await fetchFootballMatch(id);
+            await _showFbNotif(id, match, json);
+        } catch (_) { }
+    }, 60000);
+
+    _fbTracked[id] = { intervalId, match };
+    return true;
+}
+
+function stopFbTracking(matchId) {
+    const id = String(matchId);
+    const entry = _fbTracked[id];
+    if (!entry) return;
+    clearInterval(entry.intervalId);
+    delete _fbTracked[id];
+}
+
+async function _showFbNotif(id, match, detail) {
+    try {
+        const src = detail || match;
+        const home = (src.homeTeam || match.homeTeam || {}).name || 'Home';
+        const away = (src.awayTeam || match.awayTeam || {}).name || 'Away';
+        const score = fbScoreText(src) || fbScoreText(match) || '? - ?';
+        const status = fbStatusLabel(src || match);
+        const isLive = fbIsLive(src || match);
+        const emoji = isLive ? '\uD83D\uDD34' : '\u26BD';
+
+        const goals = ((detail ? detail.goals : undefined) || []);
+        const lastGoal = goals.length > 0 ? goals[goals.length - 1] : null;
+        const goalLine = lastGoal ? `GOAL: ${lastGoal.minute}' ${(lastGoal.scorer ? lastGoal.scorer.name : undefined) || ''} (${(lastGoal.team ? lastGoal.team.name : undefined) || ''})` : '';
+
+        await Notifications.dismissNotificationAsync(`fb_${id}`).catch(() => { });
+        await Notifications.scheduleNotificationAsync({
+            identifier: `fb_${id}`,
+            content: {
+                title: `${emoji} ${home} ${score} ${away}`,
+                body: goalLine ? `${goalLine}\n${status}` : status,
+                data: { matchId: id, type: 'football' },
+                priority: 'default',
+                channelId: 'score-tracker',
+            },
+            trigger: null,
+        });
+    } catch (e) { console.warn('[FbNotif]', e.message); }
+}
+
+// ─── Football Match Detail Modal (Full Rewrite) ────────────────────
+const FootballMatchModal = ({ visible, matchId, match, onClose, isDarkMode }) => {
+    const [detail, setDetail] = useState(null);
+    const [h2h, setH2h] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [activeInnings, setActiveInnings] = useState(0);
-    const [activeTab, setActiveTab] = useState('batting');
+    const intervalRef = useRef(null);
+
+    const load = useCallback(async () => {
+        if (!matchId) return;
+        try {
+            // Fetch both match detail and head2head in parallel
+            const [detailJson, h2hJson] = await Promise.allSettled([
+                fetchFootballMatch(String(matchId)),
+                fetchFootballMatch(`${matchId}/head2head?limit=5`),
+            ]);
+            if (detailJson.status === 'fulfilled') setDetail(detailJson.value);
+            if (h2hJson.status === 'fulfilled') setH2h(h2hJson.value);
+        } catch (e) {
+            console.warn('[FbModal]', e.message);
+        }
+    }, [matchId]);
 
     useEffect(() => {
         if (visible && matchId) {
-            setLoading(true); setData(null); setActiveInnings(0); setActiveTab('batting');
-            fetch(`${BASE_URL}/mcenter/v1/${matchId}/hscard`, { headers: apiHeaders })
-                .then(r => r.json())
-                .then(d => { setData(d); setLoading(false); })
-                .catch(() => setLoading(false));
+            setDetail(null); setH2h(null); setLoading(true);
+            load().finally(() => setLoading(false));
+            intervalRef.current = setInterval(load, 30000);
         }
+        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
     }, [visible, matchId]);
 
-    const innings = data?.scorecard || [];
-    const currentInnings = innings[activeInnings];
+    const d = detail || match || {};
+    const home = d.homeTeam || {};
+    const away = d.awayTeam || {};
+    const comp = d.competition || {};
+    const { name: compName, flag: compFlag, priority } = getCompData(comp.code);
+    const compColor = priority >= 90 ? '#1d4ed8' : priority >= 80 ? '#7c3aed' : priority >= 60 ? '#0369a1' : '#374151';
+    const isLive = fbIsLive(d);
+    const isFinished = d.status === 'FINISHED';
+    const ftScore = fbScoreText(d) || '-';
+    const ht = (d.score ? d.score.halfTime : undefined);
+    const htScore = (ht && ht.home !== null) ? `${(ht.home !== null && ht.home !== undefined ? ht.home : '-')} - ${(ht.away !== null && ht.away !== undefined ? ht.away : '-')}` : null;
+    const winner = (d.score ? d.score.winner : undefined); // HOME_TEAM, AWAY_TEAM, DRAW
+
+    const bg = isDarkMode ? '#111827' : '#f8fafc';
+    const cardBg = isDarkMode ? '#1E1E1E' : '#fff';
+    const textColor = isDarkMode ? '#e2e8f0' : '#111827';
+    const dimColor = isDarkMode ? '#64748b' : '#9ca3af';
+    const borderColor = isDarkMode ? 'rgba(148,163,184,0.1)' : 'rgba(0,0,0,0.06)';
+
+    // H2H matches list
+    const h2hMatches = (h2h ? h2h.matches || [] : []).filter(m => m.status === 'FINISHED').slice(0, 5);
+
+    const HomeCrest = () => home.crest
+        ? <Image source={{ uri: home.crest }} style={fbd.crest} resizeMode="contain" />
+        : <View style={[fbd.crestPH, { backgroundColor: compColor }]}><Text style={fbd.crestPHTxt}>{(home.tla || 'H').slice(0, 3)}</Text></View>;
+
+    const AwayCrest = () => away.crest
+        ? <Image source={{ uri: away.crest }} style={fbd.crest} resizeMode="contain" />
+        : <View style={[fbd.crestPH, { backgroundColor: '#374151' }]}><Text style={fbd.crestPHTxt}>{(away.tla || 'A').slice(0, 3)}</Text></View>;
 
     return (
         <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
-            <View style={sm.overlay}>
-                <TouchableOpacity style={sm.backdrop} activeOpacity={1} onPress={onClose} />
-                <View style={[sm.sheet, { backgroundColor: isDarkMode ? '#1E1E1E' : '#fff', height: SCREEN_HEIGHT * 0.9 }]}>
-                    {/* Handle */}
-                    <View style={[sm.handle, { backgroundColor: isDarkMode ? '#475569' : '#d1d5db' }]} />
+            <View style={fbd.overlay}>
+                <TouchableOpacity style={fbd.backdrop} activeOpacity={1} onPress={onClose} />
+                <View style={[fbd.sheet, { backgroundColor: bg, height: SCREEN_HEIGHT * 0.9 }]}>
+                    <View style={[fbd.handle, { backgroundColor: isDarkMode ? '#475569' : '#d1d5db' }]} />
 
-                    {/* Header */}
-                    <View style={[sm.header, { backgroundColor: '#2C2C2C' }]}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={sm.headerTitle} numberOfLines={2}>{matchTitle || 'Scorecard'}</Text>
-                            {data?.status ? <Text style={sm.headerStatus}>{data.status}</Text> : null}
+                    {/* ── Coloured Header ── */}
+                    <View style={[fbd.header, { backgroundColor: compColor }]}>
+                        {/* Competition + Live pill */}
+                        <View style={fbd.compLine}>
+                            <Text style={fbd.compTxt}>{compFlag}  {(compName || comp.name || 'Football').toUpperCase()}</Text>
+                            {isLive && (
+                                <View style={fbd.livePill}>
+                                    <MotiView from={{ opacity: 0.3 }} animate={{ opacity: 1 }}
+                                        transition={{ type: 'timing', duration: 600, loop: true }}
+                                        style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#fff' }} />
+                                    <Text style={fbd.livePillTxt}>LIVE {d.minute ? `${d.minute}'` : ''}</Text>
+                                </View>
+                            )}
                         </View>
-                        <TouchableOpacity onPress={onClose} style={sm.closeBtn}>
-                            <Ionicons name="close" size={20} color="#fff" />
+
+                        {/* Teams Row */}
+                        <View style={fbd.scoreRow}>
+                            {/* Home */}
+                            <View style={fbd.teamBlock}>
+                                <HomeCrest />
+                                <Text style={fbd.teamTxt} numberOfLines={2}>{home.shortName || home.name || '—'}</Text>
+                                {winner === 'HOME_TEAM' && (
+                                    <View style={fbd.winBadge}><Ionicons name="trophy" size={10} color="#facc15" /><Text style={fbd.winTxt}>WIN</Text></View>
+                                )}
+                            </View>
+
+                            {/* Score */}
+                            <View style={fbd.scoreCol}>
+                                <Text style={[fbd.scoreTxt, isLive && { color: '#86efac' }]}>{ftScore}</Text>
+                                {htScore && <Text style={fbd.htTxt}>HT {htScore}</Text>}
+                                <Text style={fbd.statusTxt}>{fbStatusLabel(d)}</Text>
+                            </View>
+
+                            {/* Away */}
+                            <View style={fbd.teamBlock}>
+                                <AwayCrest />
+                                <Text style={fbd.teamTxt} numberOfLines={2}>{away.shortName || away.name || '—'}</Text>
+                                {winner === 'AWAY_TEAM' && (
+                                    <View style={fbd.winBadge}><Ionicons name="trophy" size={10} color="#facc15" /><Text style={fbd.winTxt}>WIN</Text></View>
+                                )}
+                            </View>
+                        </View>
+
+                        {winner === 'DRAW' && <Text style={fbd.drawTxt}>DRAW</Text>}
+                        <TouchableOpacity onPress={onClose} style={fbd.closeBtn}>
+                            <Ionicons name="close-circle" size={24} color="rgba(255,255,255,0.7)" />
                         </TouchableOpacity>
                     </View>
 
-                    {loading ? (
-                        <View style={sm.loadingBox}>
-                            <ActivityIndicator size="large" color="#059669" />
-                            <Text style={[sm.loadingTxt, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>Loading scorecard...</Text>
-                        </View>
-                    ) : !data || innings.length === 0 ? (
-                        <View style={sm.emptyBox}>
-                            <Ionicons name="information-circle-outline" size={48} color={isDarkMode ? '#475569' : '#d1d5db'} />
-                            <Text style={[sm.emptyTxt, { color: isDarkMode ? '#64748b' : '#9ca3af' }]}>No scorecard available yet</Text>
+                    {loading && !detail ? (
+                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+                            <ActivityIndicator size="large" color={compColor} />
+                            <Text style={{ fontFamily: 'Outfit_500Medium', color: dimColor, fontSize: 14 }}>Loading match details...</Text>
                         </View>
                     ) : (
-                        <>
-                            {/* Innings tabs */}
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[sm.inningsTabs, { borderBottomColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]} contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center' }}>
-                                {innings.map((inn, idx) => (
-                                    <TouchableOpacity
-                                        key={idx}
-                                        style={[sm.innTab, { backgroundColor: isDarkMode ? '#121212' : '#f3f4f6' }, activeInnings === idx && sm.innTabActive]}
-                                        onPress={() => { setActiveInnings(idx); setActiveTab('batting'); }}
-                                    >
-                                        <Text style={[sm.innTabTxt, { color: isDarkMode ? '#94a3b8' : '#333333' }, activeInnings === idx && sm.innTabTxtActive]}>
-                                            {inn.batteamsname || `Inn ${idx + 1}`} {inn.score}/{inn.wickets}
-                                        </Text>
-                                        <Text style={[sm.innOvers, activeInnings === idx && { color: '#93c5fd' }]}>({inn.overs} ov)</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </ScrollView>
+                        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 50 }} showsVerticalScrollIndicator={false}>
 
-                            {/* Bat/Bowl tabs */}
-                            <View style={[sm.tabRow, { borderBottomColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]}>
-                                {['batting', 'bowling', 'fow'].map(t => (
-                                    <TouchableOpacity
-                                        key={t}
-                                        style={[sm.tab, activeTab === t && sm.tabActive]}
-                                        onPress={() => setActiveTab(t)}
-                                    >
-                                        <Text style={[sm.tabTxt, { color: isDarkMode ? '#64748b' : '#9ca3af' }, activeTab === t && sm.tabTxtActive]}>
-                                            {t === 'batting' ? '🏏 Batting' : t === 'bowling' ? '⚾ Bowling' : '📉 Fall of Wickets'}
-                                        </Text>
-                                    </TouchableOpacity>
+                            {/* ── Match Info Card ── */}
+                            <View style={[fbd.card, { backgroundColor: cardBg }]}>
+                                <View style={fbd.cardHeader}>
+                                    <View style={[fbd.iconBadge, { backgroundColor: isDarkMode ? '#1e3a5f' : '#dbeafe' }]}>
+                                        <Ionicons name="information-circle" size={15} color="#2563eb" />
+                                    </View>
+                                    <Text style={[fbd.cardTitle, { color: textColor }]}>Match Info</Text>
+                                </View>
+                                {[
+                                    ['location-outline', 'Venue', d.venue || '—'],
+                                    ['trophy-outline', 'Stage', (d.stage || '').replace(/_/g, ' ') || '—'],
+                                    ['calendar-outline', 'Matchday', d.matchday ? `Matchday ${d.matchday}` : '—'],
+                                    ['person-outline', 'Referee', detail?.referees?.[0]?.name || '—'],
+                                    ['time-outline', 'Date', fbToIST(d.utcDate) || '—'],
+                                ].map(([icon, label, val], i, arr) => (
+                                    <View key={label} style={[fbd.infoRow, { borderBottomColor: borderColor, borderBottomWidth: i < arr.length - 1 ? 1 : 0 }]}>
+                                        <View style={fbd.infoLeft}>
+                                            <Ionicons name={icon} size={14} color={dimColor} />
+                                            <Text style={[fbd.infoLabel, { color: dimColor }]}>{label}</Text>
+                                        </View>
+                                        <Text style={[fbd.infoVal, { color: textColor }]} numberOfLines={1}>{val}</Text>
+                                    </View>
                                 ))}
                             </View>
 
-                            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-                                {activeTab === 'batting' && currentInnings?.batsman && (
-                                    <View style={[sm.tableWrap, { borderColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]}>
-                                        <View style={[sm.tableRow, sm.tableHeader]}>
-                                            <Text style={[sm.thTxt, { flex: 2.5 }]}>BATTER</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>R</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>B</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>4s</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>6s</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>SR</Text>
+                            {/* ── Score Breakdown (only if finished/live) ── */}
+                            {(isFinished || isLive) && (
+                                <View style={[fbd.card, { backgroundColor: cardBg }]}>
+                                    <View style={fbd.cardHeader}>
+                                        <View style={[fbd.iconBadge, { backgroundColor: isDarkMode ? '#14532d' : '#dcfce7' }]}>
+                                            <Ionicons name="stats-chart" size={15} color="#16a34a" />
                                         </View>
-                                        {currentInnings.batsman.filter(b => b.balls > 0 || b.outdec).map((b, i) => (
-                                            <View key={i} style={[sm.tableRow, i % 2 === 0 && { backgroundColor: isDarkMode ? '#121212' : '#f9fafb' }]}>
-                                                <View style={{ flex: 2.5 }}>
-                                                    <Text style={[sm.playerName, { color: isDarkMode ? '#e2e8f0' : '#111827' }]}>
-                                                        {b.name}{b.iscaptain ? ' (c)' : ''}{b.iskeeper ? ' †' : ''}
-                                                    </Text>
-                                                    {b.outdec ? <Text style={sm.dismissalTxt} numberOfLines={2}>{b.outdec}</Text> : null}
+                                        <Text style={[fbd.cardTitle, { color: textColor }]}>Score Breakdown</Text>
+                                    </View>
+                                    <View style={fbd.statGrid}>
+                                        {[
+                                            { label: 'Full Time', home: d.score?.fullTime?.home, away: d.score?.fullTime?.away },
+                                            htScore ? { label: 'Half Time', home: ht?.home, away: ht?.away } : null,
+                                        ].filter(Boolean).map((row) => (
+                                            <View key={row.label} style={fbd.statRow}>
+                                                <Text style={[fbd.statVal, { color: textColor, textAlign: 'left' }]}>{row.home || '—'}</Text>
+                                                <Text style={[fbd.statLabel, { color: dimColor }]}>{row.label}</Text>
+                                                <Text style={[fbd.statVal, { color: textColor, textAlign: 'right' }]}>{row.away || '—'}</Text>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* ── Head to Head ── */}
+                            {h2hMatches.length > 0 && (
+                                <View style={[fbd.card, { backgroundColor: cardBg }]}>
+                                    <View style={fbd.cardHeader}>
+                                        <View style={[fbd.iconBadge, { backgroundColor: isDarkMode ? '#3b1f8c' : '#ede9fe' }]}>
+                                            <Ionicons name="swap-horizontal" size={15} color="#7c3aed" />
+                                        </View>
+                                        <Text style={[fbd.cardTitle, { color: textColor }]}>Head-to-Head</Text>
+                                    </View>
+                                    {h2hMatches.map((m, i) => {
+                                        const mHome = (m.homeTeam ? m.homeTeam.name : undefined) || '—';
+                                        const mAway = (m.awayTeam ? m.awayTeam.name : undefined) || '—';
+                                        const mScore = `${m.score?.fullTime?.home || '?'} - ${m.score?.fullTime?.away || '?'}`;
+                                        const mDate = new Date(m.utcDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+                                        const mWinner = m.score?.winner;
+                                        const homeWon = mWinner === 'HOME_TEAM';
+                                        const awayWon = mWinner === 'AWAY_TEAM';
+                                        return (
+                                            <View key={m.id} style={[fbd.h2hRow, { borderBottomColor: borderColor, borderBottomWidth: i < h2hMatches.length - 1 ? 1 : 0 }]}>
+                                                <Text style={[fbd.h2hDate, { color: dimColor }]}>{mDate}</Text>
+                                                <Text style={[fbd.h2hTeam, { color: homeWon ? '#16a34a' : textColor, flex: 1, textAlign: 'right' }]} numberOfLines={1}>{mHome}</Text>
+                                                <View style={[fbd.h2hScorePill, { backgroundColor: isDarkMode ? '#0f172a' : '#f1f5f9' }]}>
+                                                    <Text style={[fbd.h2hScore, { color: textColor }]}>{mScore}</Text>
                                                 </View>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }, b.outdec === 'not out' && { color: '#16a34a', fontFamily: 'Outfit_700Bold' }]}>{b.runs}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }]}>{b.balls}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }]}>{b.fours}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }]}>{b.sixes}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }]}>{parseFloat(b.strkrate || 0).toFixed(1)}</Text>
+                                                <Text style={[fbd.h2hTeam, { color: awayWon ? '#16a34a' : textColor, flex: 1, textAlign: 'left' }]} numberOfLines={1}>{mAway}</Text>
                                             </View>
-                                        ))}
-                                        {currentInnings.extras && (
-                                            <View style={[sm.extrasRow, { backgroundColor: isDarkMode ? '#121212' : '#fafafa', borderTopColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]}>
-                                                <Text style={[sm.extrasTxt, { color: isDarkMode ? '#64748b' : '#6b7280' }]}>Extras: <Text style={{ fontFamily: 'Outfit_700Bold' }}>{currentInnings.extras.total}</Text>
-                                                    {' '}(W:{currentInnings.extras.wides} NB:{currentInnings.extras.noballs} B:{currentInnings.extras.byes} LB:{currentInnings.extras.legbyes})
-                                                </Text>
-                                            </View>
-                                        )}
-                                        <View style={sm.totalRow}>
-                                            <Text style={sm.totalTxt}>Total</Text>
-                                            <Text style={sm.totalScore}>{currentInnings.score}/{currentInnings.wickets} ({currentInnings.overs} ov, RR: {currentInnings.runrate})</Text>
-                                        </View>
-                                    </View>
-                                )}
+                                        );
+                                    })}
+                                </View>
+                            )}
 
-                                {activeTab === 'bowling' && currentInnings?.bowler && (
-                                    <View style={[sm.tableWrap, { borderColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]}>
-                                        <View style={[sm.tableRow, sm.tableHeader]}>
-                                            <Text style={[sm.thTxt, { flex: 2 }]}>BOWLER</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>O</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>M</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>R</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>W</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>ECO</Text>
-                                        </View>
-                                        {currentInnings.bowler.map((b, i) => (
-                                            <View key={i} style={[sm.tableRow, i % 2 === 0 && { backgroundColor: isDarkMode ? '#121212' : '#f9fafb' }]}>
-                                                <Text style={[sm.playerName, { flex: 2, color: isDarkMode ? '#e2e8f0' : '#111827' }]}>{b.name}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }]}>{b.overs}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }]}>{b.maidens}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }]}>{b.runs}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }, b.wickets > 0 && { color: '#16a34a', fontFamily: 'Outfit_700Bold' }]}>{b.wickets}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }]}>{b.economy}</Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                )}
+                            {/* ── Info note about live events ── */}
+                            <View style={[fbd.noteCard, { backgroundColor: isDarkMode ? '#1c1917' : '#fafaf9', borderColor: isDarkMode ? '#44403c' : '#e7e5e4' }]}>
+                                <Ionicons name="football" size={16} color="#78716c" />
+                                <Text style={[fbd.noteTxt, { color: dimColor }]}>
+                                    Goal scorers & match events (live data) require a premium data plan. Score updates every 30s automatically.
+                                </Text>
+                            </View>
 
-                                {activeTab === 'fow' && currentInnings?.fow?.fow && (
-                                    <View style={[sm.tableWrap, { borderColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]}>
-                                        <View style={[sm.tableRow, sm.tableHeader]}>
-                                            <Text style={[sm.thTxt, { flex: 0.6 }]}>#</Text>
-                                            <Text style={[sm.thTxt, { flex: 2 }]}>BATTER</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>SCORE</Text>
-                                            <Text style={[sm.thTxt, sm.thRight]}>OVER</Text>
-                                        </View>
-                                        {currentInnings.fow.fow.map((f, i) => (
-                                            <View key={i} style={[sm.tableRow, i % 2 === 0 && { backgroundColor: isDarkMode ? '#121212' : '#f9fafb' }]}>
-                                                <Text style={[sm.tdTxt, { flex: 0.6, color: isDarkMode ? '#475569' : '#6b7280' }]}>{i + 1}</Text>
-                                                <Text style={[sm.playerName, { flex: 2, color: isDarkMode ? '#e2e8f0' : '#111827' }]}>{f.batsmanname}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { fontFamily: 'Outfit_700Bold', color: isDarkMode ? '#f1f5f9' : '#333333' }]}>{f.runs}</Text>
-                                                <Text style={[sm.tdTxt, sm.tdRight, { color: isDarkMode ? '#cbd5e1' : '#333333' }]}>{f.overnbr}</Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                )}
-                            </ScrollView>
-                        </>
+                        </ScrollView>
                     )}
                 </View>
             </View>
         </Modal>
     );
 };
-
-const sm = StyleSheet.create({
+const fbd = StyleSheet.create({
     overlay: { flex: 1, justifyContent: 'flex-end' },
-    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
-    sheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
-    handle: { width: 40, height: 4, backgroundColor: '#d1d5db', borderRadius: 2, alignSelf: 'center', marginTop: 10 },
-    header: { flexDirection: 'row', alignItems: 'flex-start', padding: 18, paddingTop: 14, gap: 12 },
-    headerTitle: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: '#fff', lineHeight: 22 },
-    headerStatus: { fontSize: 12, fontFamily: 'Outfit_600SemiBold', color: '#93c5fd', marginTop: 4 },
-    closeBtn: { padding: 6, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 },
-    loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-    loadingTxt: { fontSize: 14, fontFamily: 'Outfit_500Medium', color: '#6b7280' },
-    emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-    emptyTxt: { fontSize: 15, fontFamily: 'Outfit_600SemiBold', color: '#9ca3af' },
-    inningsTabs: { maxHeight: 56, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-    innTab: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, backgroundColor: '#f3f4f6', alignItems: 'center' },
-    innTabActive: { backgroundColor: '#2C2C2C' },
-    innTabTxt: { fontSize: 13, fontFamily: 'Outfit_700Bold', color: '#333333' },
-    innTabTxtActive: { color: '#fff' },
-    innOvers: { fontSize: 10, fontFamily: 'Outfit_400Regular', color: '#6b7280' },
-    tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f3f4f6', paddingHorizontal: 6 },
-    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-    tabActive: { borderBottomColor: '#3b82f6' },
-    tabTxt: { fontSize: 12, fontFamily: 'Outfit_600SemiBold', color: '#9ca3af' },
-    tabTxtActive: { color: '#3b82f6', fontFamily: 'Outfit_700Bold' },
-    tableWrap: { margin: 14, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#f3f4f6' },
-    tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
-    tableHeader: { backgroundColor: '#2C2C2C' },
-    tableRowAlt: { backgroundColor: '#f9fafb' },
-    thTxt: { fontSize: 10, fontFamily: 'Outfit_700Bold', color: '#93c5fd', flex: 1 },
-    thRight: { textAlign: 'right', flex: 1 },
-    tdTxt: { fontSize: 13, fontFamily: 'Outfit_500Medium', color: '#333333', flex: 1 },
-    tdRight: { textAlign: 'right', flex: 1 },
-    playerName: { fontSize: 13, fontFamily: 'Outfit_700Bold', color: '#111827' },
-    dismissalTxt: { fontSize: 10, fontFamily: 'Outfit_400Regular', color: '#6b7280', marginTop: 1 },
-    extrasRow: { backgroundColor: '#fafafa', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#f3f4f6' },
-    extrasTxt: { fontSize: 12, fontFamily: 'Outfit_500Medium', color: '#6b7280' },
-    totalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#121212', paddingHorizontal: 12, paddingVertical: 10 },
-    totalTxt: { fontSize: 13, fontFamily: 'Outfit_700Bold', color: '#fff' },
-    totalScore: { fontSize: 12, fontFamily: 'Outfit_600SemiBold', color: '#93c5fd' },
+    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
+    sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' },
+    handle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 4 },
+    header: { padding: 18, paddingTop: 10, paddingBottom: 20, position: 'relative' },
+    compLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 14 },
+    compTxt: { fontSize: 11, fontFamily: 'Outfit_700Bold', color: 'rgba(255,255,255,0.85)', letterSpacing: 1.5 },
+    livePill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+    livePillTxt: { color: '#fff', fontSize: 10, fontFamily: 'Outfit_700Bold' },
+    scoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+    teamBlock: { flex: 1, alignItems: 'center', gap: 8 },
+    crest: { width: 52, height: 52 },
+    crestPH: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+    crestPHTxt: { fontSize: 11, fontFamily: 'Outfit_700Bold', color: '#fff' },
+    teamTxt: { fontSize: 12, fontFamily: 'Outfit_700Bold', color: '#fff', textAlign: 'center', lineHeight: 18 },
+    winBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+    winTxt: { fontSize: 9, fontFamily: 'Outfit_700Bold', color: '#facc15' },
+    scoreCol: { alignItems: 'center', gap: 5 },
+    scoreTxt: { fontSize: 40, fontFamily: 'Outfit_800ExtraBold', color: '#fff' },
+    htTxt: { fontSize: 10, fontFamily: 'Outfit_500Medium', color: 'rgba(255,255,255,0.6)' },
+    statusTxt: { fontSize: 10, fontFamily: 'Outfit_700Bold', color: 'rgba(255,255,255,0.7)', letterSpacing: 0.5 },
+    drawTxt: { textAlign: 'center', fontSize: 11, fontFamily: 'Outfit_700Bold', color: 'rgba(255,255,255,0.7)', marginTop: 6, letterSpacing: 2 },
+    closeBtn: { position: 'absolute', top: 12, right: 14 },
+    // Cards
+    card: { borderRadius: 16, padding: 16, marginBottom: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+    iconBadge: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+    cardTitle: { fontSize: 14, fontFamily: 'Outfit_800ExtraBold', letterSpacing: 0.3 },
+    // Info rows
+    infoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 9 },
+    infoLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    infoLabel: { fontSize: 12, fontFamily: 'Outfit_500Medium' },
+    infoVal: { fontSize: 12, fontFamily: 'Outfit_700Bold', textAlign: 'right', flex: 1, marginLeft: 12 },
+    // Score grid
+    statGrid: { gap: 4 },
+    statRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
+    statLabel: { fontSize: 12, fontFamily: 'Outfit_600SemiBold', flex: 1, textAlign: 'center' },
+    statVal: { fontSize: 20, fontFamily: 'Outfit_800ExtraBold', width: 40 },
+    // H2H
+    h2hRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10 },
+    h2hDate: { fontSize: 9, fontFamily: 'Outfit_500Medium', width: 44 },
+    h2hTeam: { fontSize: 11, fontFamily: 'Outfit_600SemiBold' },
+    h2hScorePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginHorizontal: 4 },
+    h2hScore: { fontSize: 13, fontFamily: 'Outfit_800ExtraBold', textAlign: 'center' },
+    // Note card
+    noteCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8 },
+    noteTxt: { fontSize: 11, fontFamily: 'Outfit_400Regular', flex: 1, lineHeight: 17 },
 });
 
-// ─── Football Coming Soon ─────────────────────────
-const FootballComingSoon = ({ colors }) => (
-    <View style={fb.container}>
-        <MotiView from={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', damping: 14, delay: 150 }} style={fb.iconBox}>
-            <Text style={{ fontSize: 72 }}>⚽</Text>
-            <MotiView
-                from={{ opacity: 0.3, scale: 0.9 }} animate={{ opacity: 1, scale: 1.1 }}
-                transition={{ type: 'timing', duration: 1000, loop: true }}
-                style={[fb.pulse, { borderColor: '#22c55e' }]}
-            />
-        </MotiView>
-        <Text style={[fb.title, { color: colors.text }]}>Football is Coming!</Text>
-        <Text style={[fb.subtitle, { color: colors.textDim }]}>Live scores, standings, and match updates from Premier League, La Liga, Bundesliga & more — very soon. 🔥</Text>
-        <View style={fb.badge}>
-            <MotiView from={{ opacity: 0.6 }} animate={{ opacity: 1 }} transition={{ type: 'timing', duration: 600, loop: true }}>
-                <Text style={fb.badgeTxt}>🔔 COMING SOON</Text>
-            </MotiView>
-        </View>
-        <View style={fb.leagueRow}>
-            {['🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League', '🇪🇸 La Liga', '🇩🇪 Bundesliga', '🇮🇳 ISL'].map((l, i) => (
-                <View key={i} style={fb.leagueChip}>
-                    <Text style={fb.leagueChipTxt}>{l}</Text>
+
+
+// ─── Football Match Card (tappable) ───────────────────────────────
+const FootballMatchCard = ({ match, isDarkMode, onPress }) => {
+    const comp = match.competition || {};
+    const { name: compName, flag: compFlag, priority } = getCompData(comp.code);
+    const home = match.homeTeam || {};
+    const away = match.awayTeam || {};
+    const isLive = fbIsLive(match);
+    const scoreText = fbScoreText(match);
+    const statusLabel = fbStatusLabel(match);
+    const compColor = priority >= 90 ? '#1d4ed8' : priority >= 80 ? '#7c3aed' : priority >= 60 ? '#0369a1' : '#374151';
+
+    return (
+        <TouchableOpacity activeOpacity={0.88} onPress={onPress} style={[fbc.card, {
+            backgroundColor: isDarkMode ? '#1E1E1E' : '#fff',
+            borderColor: isLive ? '#22c55e' : isDarkMode ? '#2C3147' : '#f0f0f0',
+            borderWidth: isLive ? 1.5 : 1,
+        }]}>
+            {isLive && <View style={fbc.liveStrip} />}
+            <View style={fbc.compRow}>
+                <View style={[fbc.compBadge, { backgroundColor: compColor }]}>
+                    <Text style={fbc.compFlag}>{compFlag}</Text>
+                    <Text style={fbc.compName}>{compName}</Text>
                 </View>
-            ))}
-        </View>
-    </View>
-);
-const fb = StyleSheet.create({
-    container: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 40 },
-    iconBox: { width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(34,197,94,0.08)', alignItems: 'center', justifyContent: 'center', marginBottom: 28 },
-    pulse: { position: 'absolute', width: 130, height: 130, borderRadius: 65, borderWidth: 2, opacity: 0.4 },
-    title: { fontSize: 26, fontFamily: 'Outfit_800ExtraBold', marginBottom: 12, textAlign: 'center' },
-    subtitle: { fontSize: 14, fontFamily: 'Outfit_400Regular', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-    badge: { backgroundColor: '#166534', paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, marginBottom: 28 },
-    badgeTxt: { color: '#fff', fontFamily: 'Outfit_700Bold', fontSize: 12, letterSpacing: 1.5 },
-    leagueRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 },
-    leagueChip: { backgroundColor: '#f0fdf4', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#bbf7d0' },
-    leagueChipTxt: { fontSize: 12, fontFamily: 'Outfit_600SemiBold', color: '#166534' },
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {isLive && (
+                        <View style={fbc.liveBadge}>
+                            <MotiView from={{ opacity: 0.4 }} animate={{ opacity: 1 }} transition={{ type: 'timing', duration: 600, loop: true }} style={fbc.liveDot} />
+                            <Text style={fbc.liveTxt}>LIVE{match.minute ? ` ${match.minute}'` : ''}</Text>
+                        </View>
+                    )}
+                    <FbBellButton match={match} isDarkMode={isDarkMode} />
+                </View>
+            </View>
+            <View style={fbc.matchRow}>
+                <View style={fbc.teamCol}>
+                    {home.crest ? <Image source={{ uri: home.crest }} style={fbc.crest} resizeMode="contain" /> :
+                        <View style={[fbc.crestPlaceholder, { backgroundColor: compColor }]}><Text style={fbc.crestTxt}>{(home.tla || 'H').slice(0, 3)}</Text></View>}
+                    <Text style={[fbc.teamName, { color: isDarkMode ? '#e2e8f0' : '#111827' }]} numberOfLines={2}>{home.shortName || home.name}</Text>
+                </View>
+                <View style={fbc.scoreBox}>
+                    {scoreText ? (
+                        <>
+                            <Text style={[fbc.scoreText, { color: isDarkMode ? '#f8fafc' : '#111827' }, isLive && { color: '#22c55e' }]}>{scoreText}</Text>
+                            <Text style={[fbc.statusText, { color: isLive ? '#22c55e' : isDarkMode ? '#64748b' : '#6b7280' }]}>{statusLabel}</Text>
+                        </>
+                    ) : (
+                        <>
+                            <Text style={[fbc.vsText, { color: isDarkMode ? '#64748b' : '#d1d5db' }]}>vs</Text>
+                            <Text style={[fbc.timeText, { color: isDarkMode ? '#94a3b8' : '#6b7280' }]}>{statusLabel}</Text>
+                        </>
+                    )}
+                </View>
+                <View style={[fbc.teamCol, { alignItems: 'flex-end' }]}>
+                    {away.crest ? <Image source={{ uri: away.crest }} style={fbc.crest} resizeMode="contain" /> :
+                        <View style={[fbc.crestPlaceholder, { backgroundColor: '#374151' }]}><Text style={fbc.crestTxt}>{(away.tla || 'A').slice(0, 3)}</Text></View>}
+                    <Text style={[fbc.teamName, { color: isDarkMode ? '#e2e8f0' : '#111827', textAlign: 'right' }]} numberOfLines={2}>{away.shortName || away.name}</Text>
+                </View>
+            </View>
+            {(match.venue || match.stage) && (
+                <Text style={[fbc.venueTxt, { color: isDarkMode ? '#475569' : '#9ca3af' }]} numberOfLines={1}>
+                    📍 {match.venue || (match.stage || '').replace(/_/g, ' ')}
+                </Text>
+            )}
+            <View style={fbc.tapHint}>
+                <Ionicons name="chevron-forward-outline" size={12} color={isDarkMode ? '#475569' : '#d1d5db'} />
+                <Text style={[fbc.tapHintTxt, { color: isDarkMode ? '#475569' : '#d1d5db' }]}>Tap for details</Text>
+            </View>
+        </TouchableOpacity>
+    );
+};
+const fbc = StyleSheet.create({
+    card: { borderRadius: 20, padding: 16, marginBottom: 14, elevation: 3, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, overflow: 'hidden' },
+    liveStrip: { position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: '#22c55e', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
+    compRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    compBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    compFlag: { fontSize: 12 },
+    compName: { fontSize: 11, fontFamily: 'Outfit_700Bold', color: '#fff', letterSpacing: 0.3 },
+    liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fee2e2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ef4444' },
+    liveTxt: { fontSize: 10, fontFamily: 'Outfit_700Bold', color: '#ef4444' },
+    matchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 },
+    teamCol: { flex: 1, alignItems: 'center', gap: 8 },
+    crest: { width: 44, height: 44 },
+    crestPlaceholder: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+    crestTxt: { fontSize: 10, fontFamily: 'Outfit_700Bold', color: '#fff' },
+    teamName: { fontSize: 12, fontFamily: 'Outfit_700Bold', textAlign: 'center', lineHeight: 17 },
+    scoreBox: { flex: 1.2, alignItems: 'center', gap: 4 },
+    scoreText: { fontSize: 28, fontFamily: 'Outfit_800ExtraBold' },
+    statusText: { fontSize: 10, fontFamily: 'Outfit_700Bold', letterSpacing: 0.5 },
+    vsText: { fontSize: 22, fontFamily: 'Outfit_800ExtraBold' },
+    timeText: { fontSize: 10, fontFamily: 'Outfit_600SemiBold', textAlign: 'center' },
+    venueTxt: { fontSize: 10, fontFamily: 'Outfit_400Regular', marginTop: 2 },
+    tapHint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 3, marginTop: 4 },
+    tapHintTxt: { fontSize: 9, fontFamily: 'Outfit_500Medium' },
 });
 
-// ─── MAIN SCREEN ─────────────────────────────────
+// ─── MAIN SCREEN ──────────────────────────────────
 export default function LiveSportsScreen() {
     const { isDarkMode, colors } = React.useContext(ThemeContext);
-
+    const navigation = useNavigation();
     const [activeTab, setActiveTab] = useState('cricket');
     const [matchFilter, setMatchFilter] = useState('live');
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
-    const [scorecardMatch, setScorecardMatch] = useState(null);
+
+    // Football state
+    const [fbFilter, setFbFilter] = useState('live');
+    const [fbMatches, setFbMatches] = useState([]);
+    const [fbLoading, setFbLoading] = useState(false);
+    const [fbRefreshing, setFbRefreshing] = useState(false);
+    const [fbSelectedMatch, setFbSelectedMatch] = useState(null);
 
     const FILTER_TABS = [
         { key: 'live', label: 'Live', icon: 'radio', color: '#22c55e' },
@@ -617,72 +885,82 @@ export default function LiveSportsScreen() {
     ];
 
     const fetchMatches = useCallback(async (filter = matchFilter, isRefresh = false) => {
+        const cacheKey = `matches_${filter}`;
+
+        // Serve fresh cache immediately
+        if (!isRefresh) {
+            const fresh = getCached(cacheKey);
+            if (fresh) { setMatches(fresh); return; }
+        }
+
         if (isRefresh) setRefreshing(true); else setLoading(true);
         try {
-            // Cricbuzz matches/v1/{filter} - live | upcoming | recent
-            const res = await fetch(`${BASE_URL}/matches/v1/${filter}`, { headers: apiHeaders });
-            const json = await res.json();
-
-            // Cricbuzz response structure: { typeMatches: [{ matchType, seriesMatches: [...] }] }
-            const all = [];
-            const typeMatches = json.typeMatches || [];
-            for (const tm of typeMatches) {
-                for (const sm2 of (tm.seriesMatches || [])) {
-                    const seriesAdWrapper = sm2.seriesAdWrapper || {};
-                    const seriesName = seriesAdWrapper.seriesName || '';
-                    const matchesArr = seriesAdWrapper.matches || [];
-                    for (const m of matchesArr) {
-                        const mi = m.matchInfo || {};
-                        const ts = m.matchScore || {};
-                        all.push({
-                            id: mi.matchId,
-                            matchType: mi.matchFormat || tm.matchType || '',
-                            series: seriesName,
-                            team1: { teamId: mi.team1?.teamId, teamName: mi.team1?.teamName, teamFlag: '' },
-                            team2: { teamId: mi.team2?.teamId, teamName: mi.team2?.teamName, teamFlag: '' },
-                            score1: ts.team1Score || null,
-                            score2: ts.team2Score || null,
-                            status: mi.status || '',
-                            venue: mi.groundName || '',
-                            battingTeam: ts.matchScoreDetails?.inningsScoreList?.[0]?.batTeamId || null,
-                            matchInfo: mi,
-                            teamScore: { team1score: ts.team1Score, team2score: ts.team2Score },
-                        });
-                    }
-                }
+            let path;
+            if (filter === 'live' || filter === 'recent') {
+                path = '/currentMatches?offset=0';
+            } else {
+                path = '/matches?offset=0';
             }
+
+            const json = await cricketFetch(path);
+            let all = json.data || [];
+
+            if (filter === 'live') {
+                const live = all.filter(m => m.matchStarted && !m.matchEnded);
+                all = live.length > 0 ? live : all;
+            } else if (filter === 'upcoming') {
+                all = all.filter(m => !m.matchStarted);
+            } else if (filter === 'recent') {
+                const ended = all.filter(m => m.matchEnded);
+                all = ended.length > 0 ? ended : all;
+            }
+
+            // Smart filter: keep only relevant matches, India first
+            all = filterAndSortMatches(all);
+
+            setCache(cacheKey, all);
             setMatches(all);
         } catch (e) {
             console.warn('Sports API error:', e.message);
-            setMatches([]);
+            const stale = getStaleCached(cacheKey);
+            setMatches(stale || []);
         } finally { setLoading(false); setRefreshing(false); }
     }, [matchFilter]);
 
+    const fetchFootball = useCallback(async (filter = fbFilter, isRefresh = false) => {
+        const cacheKey = `fb_${filter}`;
+        if (!isRefresh) {
+            const fresh = getCached(cacheKey);
+            if (fresh) { setFbMatches(fresh); return; }
+        }
+        if (isRefresh) setFbRefreshing(true); else setFbLoading(true);
+        try {
+            let data;
+            if (filter === 'live') data = await fetchFootballLive();
+            else if (filter === 'upcoming') data = await fetchFootballUpcoming();
+            else data = await fetchFootballRecent();
+            setCache(cacheKey, data);
+            setFbMatches(data);
+        } catch (e) {
+            console.warn('[Football]', e.message);
+            const stale = getStaleCached(cacheKey);
+            setFbMatches(stale || []);
+        } finally { setFbLoading(false); setFbRefreshing(false); }
+    }, [fbFilter]);
+
     useEffect(() => {
         if (activeTab === 'cricket') fetchMatches(matchFilter);
-    }, [activeTab, matchFilter]);
+        else if (activeTab === 'football') fetchFootball(fbFilter);
+    }, [activeTab, matchFilter, fbFilter]);
 
-    const handleFilterChange = (f) => {
-        setMatchFilter(f);
-    };
-
-    const getMatchTitle = (m) => {
-        const t1 = m?.team1?.teamName || '';
-        const t2 = m?.team2?.teamName || '';
-        return t1 && t2 ? `${t1} vs ${t2}` : 'Match';
-    };
-
-    const cardBg = isDarkMode ? '#1E1E1E' : '#fff';
     const bgColor = isDarkMode ? '#111827' : '#f8fafc';
 
     return (
         <SafeAreaView style={[s.container, { backgroundColor: bgColor }]} edges={['top']}>
             <TopHeader />
 
-            {/* === SVG Wave Hero === */}
+            {/* Hero */}
             <View style={s.heroBanner}>
-                {/* Green/dark base fills bottom */}
-                {/* Content area at top */}
                 <View style={[s.heroContent, { backgroundColor: isDarkMode ? '#121212' : '#fff' }]}>
                     <View style={s.heroLeft}>
                         <View style={[s.heroBadge, { backgroundColor: isDarkMode ? 'rgba(34,197,94,0.15)' : '#ecfdf5', borderColor: isDarkMode ? '#166534' : '#6ee7b7' }]}>
@@ -697,40 +975,19 @@ export default function LiveSportsScreen() {
                         <Text style={[s.heroSubtitle, { color: isDarkMode ? '#64748b' : '#6b7280' }]}>Cricket · Football · More</Text>
                     </View>
                 </View>
-
-                {/* SVG bezier wave — content color on top, green peeks through below */}
-                <Svg
-                    width={width}
-                    height={44}
-                    viewBox={`0 0 ${width} 44`}
-                    style={s.heroSvgWave}
-                    preserveAspectRatio="none"
-                >
+                <Svg width={width} height={44} viewBox={`0 0 ${width} 44`} style={s.heroSvgWave} preserveAspectRatio="none">
                     <Path
                         d={`M0,30 C${width * 0.15},44 ${width * 0.28},8 ${width * 0.5},22 C${width * 0.72},36 ${width * 0.85},4 ${width},18 L${width},0 L0,0 Z`}
                         fill={isDarkMode ? '#121212' : '#fff'}
                     />
                 </Svg>
-
-                {/* Illustration over everything */}
-                <Image
-                    source={require('../../assets/sportsillustration.png')}
-                    style={s.heroIllustration}
-                    resizeMode="contain"
-                />
+                <Image source={require('../../assets/sportsillustration.png')} style={s.heroIllustration} resizeMode="contain" />
             </View>
 
-            {/* Sport Tab Selector */}
+            {/* Sport Tab */}
             <View style={[s.sportTabRow, { backgroundColor: isDarkMode ? '#1E1E1E' : '#fff', borderBottomColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]}>
-                {[
-                    { key: 'cricket', label: 'Cricket' },
-                    { key: 'football', label: 'Football' },
-                ].map(tab => (
-                    <TouchableOpacity
-                        key={tab.key}
-                        style={[s.sportTab, activeTab === tab.key && s.sportTabActive]}
-                        onPress={() => setActiveTab(tab.key)}
-                    >
+                {[{ key: 'cricket', label: 'Cricket' }, { key: 'football', label: 'Football' }].map(tab => (
+                    <TouchableOpacity key={tab.key} style={[s.sportTab, activeTab === tab.key && s.sportTabActive]} onPress={() => setActiveTab(tab.key)}>
                         <SportVideo sport={tab.key} size={32} bgColor={activeTab === tab.key ? (isDarkMode ? '#1E1E1E' : '#121212') : (isDarkMode ? '#1E1E1E' : '#f3f4f6')} />
                         <Text style={[s.sportTabLabel, { color: activeTab === tab.key ? (isDarkMode ? '#f1f5f9' : '#111827') : (isDarkMode ? '#475569' : '#9ca3af') }, activeTab === tab.key && s.sportTabLabelActive]}>{tab.label}</Text>
                         {activeTab === tab.key && <View style={[s.sportTabUnderline, { backgroundColor: '#059669' }]} />}
@@ -739,30 +996,83 @@ export default function LiveSportsScreen() {
             </View>
 
             {activeTab === 'football' ? (
-                <FootballComingSoon colors={colors} />
-            ) : (
                 <>
-                    {/* Match Filter */}
+                    {/* Football filter tabs */}
                     <View style={[s.filterRow, { backgroundColor: isDarkMode ? '#1E1E1E' : '#fff', borderBottomColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]}>
-                        {FILTER_TABS.map(ft => (
-                            <TouchableOpacity
-                                key={ft.key}
-                                style={[s.filterTab, matchFilter === ft.key && { borderBottomColor: ft.color, borderBottomWidth: 2 }]}
-                                onPress={() => handleFilterChange(ft.key)}
-                            >
-                                <Ionicons
-                                    name={ft.icon}
-                                    size={16}
-                                    color={matchFilter === ft.key ? ft.color : (isDarkMode ? '#475569' : '#9ca3af')}
-                                />
-                                <Text style={[s.filterTabTxt, { color: matchFilter === ft.key ? ft.color : (isDarkMode ? '#64748b' : '#6b7280') }]}>
-                                    {ft.label}
-                                </Text>
+                        {[
+                            { key: 'live', label: 'Live', icon: 'radio', color: '#22c55e' },
+                            { key: 'upcoming', label: 'Upcoming', icon: 'calendar-outline', color: '#f59e0b' },
+                            { key: 'recent', label: 'Recent', icon: 'checkmark-circle-outline', color: '#3b82f6' },
+                        ].map(ft => (
+                            <TouchableOpacity key={ft.key}
+                                style={[s.filterTab, fbFilter === ft.key && { borderBottomColor: ft.color, borderBottomWidth: 2 }]}
+                                onPress={() => setFbFilter(ft.key)}>
+                                <Ionicons name={ft.icon} size={16} color={fbFilter === ft.key ? ft.color : (isDarkMode ? '#475569' : '#9ca3af')} />
+                                <Text style={[s.filterTabTxt, { color: fbFilter === ft.key ? ft.color : (isDarkMode ? '#475569' : '#9ca3af') }]}>{ft.label}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
 
-                    {/* Matches List */}
+                    {fbLoading ? (
+                        <ScrollView contentContainerStyle={{ padding: 16 }}>
+                            {[1, 2, 3, 4].map(i => <SkeletonCard key={i} isDarkMode={isDarkMode} />)}
+                        </ScrollView>
+                    ) : fbMatches.length === 0 ? (
+                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32 }}>
+                            <Text style={{ fontSize: 56 }}>⚽</Text>
+                            <Text style={{ fontFamily: 'Outfit_700Bold', fontSize: 18, color: isDarkMode ? '#e2e8f0' : '#111827' }}>
+                                {fbFilter === 'live' ? 'No Live Matches' : fbFilter === 'upcoming' ? 'No Upcoming Matches' : 'No Recent Matches'}
+                            </Text>
+                            <TouchableOpacity onPress={() => fetchFootball(fbFilter, true)} style={{ backgroundColor: '#1d4ed8', paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20 }}>
+                                <Text style={{ color: '#fff', fontFamily: 'Outfit_700Bold' }}>Refresh</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={fbMatches}
+                            keyExtractor={item => String(item.id)}
+                            renderItem={({ item }) => (
+                                <FootballMatchCard
+                                    match={item}
+                                    isDarkMode={isDarkMode}
+                                    onPress={() => setFbSelectedMatch(item)}
+                                />
+                            )}
+                            contentContainerStyle={{ padding: 14, paddingBottom: 80 }}
+                            refreshControl={
+                                <RefreshControl
+                                    refreshing={fbRefreshing}
+                                    onRefresh={() => fetchFootball(fbFilter, true)}
+                                    tintColor="#1d4ed8"
+                                />
+                            }
+                            showsVerticalScrollIndicator={false}
+                        />
+                    )}
+
+                    {/* Football Detail Modal */}
+                    <FootballMatchModal
+                        visible={!!fbSelectedMatch}
+                        matchId={(fbSelectedMatch ? fbSelectedMatch.id : undefined)}
+                        match={fbSelectedMatch}
+                        onClose={() => setFbSelectedMatch(null)}
+                        isDarkMode={isDarkMode}
+                    />
+                </>
+            ) : (
+                <>
+                    {/* Filter tabs */}
+                    <View style={[s.filterRow, { backgroundColor: isDarkMode ? '#1E1E1E' : '#fff', borderBottomColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]}>
+                        {FILTER_TABS.map(ft => (
+                            <TouchableOpacity key={ft.key}
+                                style={[s.filterTab, matchFilter === ft.key && { borderBottomColor: ft.color, borderBottomWidth: 2 }]}
+                                onPress={() => setMatchFilter(ft.key)}>
+                                <Ionicons name={ft.icon} size={16} color={matchFilter === ft.key ? ft.color : (isDarkMode ? '#475569' : '#9ca3af')} />
+                                <Text style={[s.filterTabTxt, { color: matchFilter === ft.key ? ft.color : (isDarkMode ? '#64748b' : '#6b7280') }]}>{ft.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
                     {loading ? (
                         <ScrollView contentContainerStyle={{ padding: 16 }}>
                             {[1, 2, 3, 4].map(i => <SkeletonCard key={i} isDarkMode={isDarkMode} />)}
@@ -780,119 +1090,50 @@ export default function LiveSportsScreen() {
                     ) : (
                         <FlatList
                             data={matches}
-                            keyExtractor={(_, i) => String(i)}
+                            keyExtractor={(item) => item.id}
                             contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
                             showsVerticalScrollIndicator={false}
                             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchMatches(matchFilter, true)} colors={['#059669']} tintColor={isDarkMode ? '#059669' : undefined} />}
                             renderItem={({ item }) => (
                                 <MatchCard
                                     match={item}
-                                    onPress={() => item.id && setScorecardMatch(item)}
+                                    onPress={() => item.id && navigation.navigate('CricketScorecard', { matchId: item.id, matchTitle: item.name })}
                                     isDarkMode={isDarkMode}
-                                    colors={colors}
                                 />
                             )}
                         />
                     )}
                 </>
             )}
-
-            {/* Scorecard Modal */}
-            <ScorecardModal
-                visible={!!scorecardMatch}
-                matchId={scorecardMatch?.id}
-                matchTitle={getMatchTitle(scorecardMatch)}
-                onClose={() => setScorecardMatch(null)}
-                isDarkMode={isDarkMode}
-                colors={colors}
-            />
         </SafeAreaView>
     );
 }
 
 const s = StyleSheet.create({
     container: { flex: 1 },
-
-    // === SVG WAVE HERO ===
-    heroBanner: {
-        backgroundColor: '#00B894',   // teal-green base
-        height: 150,
-        overflow: 'hidden',
-    },
-    // White section covering the top portion — text lives here
-    heroContent: {
-        position: 'absolute',
-        top: 0, left: 0, right: 0,
-        height: 109,
-        backgroundColor: '#fff',
-        paddingTop: 14,
-        paddingLeft: 20,
-        justifyContent: 'center',
-    },
-    heroSvgWave: {
-        position: 'absolute',
-        top: 106,
-        left: 0,
-    },
+    heroBanner: { backgroundColor: '#00B894', height: 150, overflow: 'hidden' },
+    heroContent: { position: 'absolute', top: 0, left: 0, right: 0, height: 109, paddingTop: 14, paddingLeft: 20, justifyContent: 'center' },
+    heroSvgWave: { position: 'absolute', top: 106, left: 0 },
     heroLeft: { gap: 4 },
-    heroBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        alignSelf: 'flex-start',
-        backgroundColor: '#ecfdf5',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#6ee7b7',
-        marginBottom: 2,
-    },
-    livePill: {
-        width: 7, height: 7, borderRadius: 4,
-        backgroundColor: '#22c55e',
-    },
-    heroBadgeText: {
-        color: '#006A4E',
-        fontSize: 10,
-        fontFamily: 'Outfit_700Bold',
-        letterSpacing: 1.2,
-    },
-    heroTitle: {
-        fontSize: 26,
-        fontFamily: 'Outfit_800ExtraBold',
-        color: '#121212',
-        letterSpacing: -0.5,
-    },
-    heroSubtitle: {
-        fontSize: 12,
-        fontFamily: 'Outfit_400Regular',
-        color: '#6b7280',
-    },
-    heroIllustration: {
-        width: width * 0.46,
-        height: 130,
-        position: 'absolute',
-        right: 0,
-        bottom: 0,
-        zIndex: 10,
-    },
-
-    sportTabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
+    heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, marginBottom: 2 },
+    livePill: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#22c55e' },
+    heroBadgeText: { fontSize: 10, fontFamily: 'Outfit_700Bold', letterSpacing: 1.2 },
+    heroTitle: { fontSize: 26, fontFamily: 'Outfit_800ExtraBold', letterSpacing: -0.5 },
+    heroSubtitle: { fontSize: 12, fontFamily: 'Outfit_400Regular' },
+    heroIllustration: { width: width * 0.46, height: 130, position: 'absolute', right: 0, bottom: 0, zIndex: 10 },
+    sportTabRow: { flexDirection: 'row', borderBottomWidth: 1 },
     sportTab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 6, position: 'relative' },
     sportTabActive: {},
-    sportTabEmoji: { fontSize: 18 },
-    sportTabLabel: { fontSize: 15, fontFamily: 'Outfit_600SemiBold', color: '#9ca3af' },
-    sportTabLabelActive: { color: '#111827', fontFamily: 'Outfit_700Bold' },
-    sportTabUnderline: { position: 'absolute', bottom: 0, left: '15%', right: '15%', height: 3, backgroundColor: '#2C2C2C', borderTopLeftRadius: 3, borderTopRightRadius: 3 },
-
+    sportTabLabel: { fontSize: 15, fontFamily: 'Outfit_600SemiBold' },
+    sportTabLabelActive: { fontFamily: 'Outfit_700Bold' },
+    sportTabUnderline: { position: 'absolute', bottom: 0, left: '15%', right: '15%', height: 3, borderTopLeftRadius: 3, borderTopRightRadius: 3 },
     filterRow: { flexDirection: 'row', borderBottomWidth: 1 },
     filterTab: { flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, gap: 3 },
     filterTabTxt: { fontSize: 11, fontFamily: 'Outfit_700Bold' },
-
     emptyBox: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
     emptyTitle: { fontSize: 20, fontFamily: 'Outfit_700Bold', marginBottom: 8 },
     emptySubtitle: { fontSize: 14, fontFamily: 'Outfit_400Regular', textAlign: 'center', marginBottom: 20 },
     retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#3b82f6', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
     retryTxt: { color: '#fff', fontFamily: 'Outfit_700Bold', fontSize: 14 },
 });
+

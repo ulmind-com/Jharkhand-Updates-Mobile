@@ -144,7 +144,6 @@ export default function EventsScreen() {
 
                         <TouchableOpacity
                             style={[styles.secondaryButton, expired && styles.buttonDisabled]}
-                            disabled={expired}
                             onPress={() => navigation.navigate('EventDetails', { eventId: item.id })}
                         >
                             <Text style={[styles.secondaryButtonText, expired && { color: '#6b7280' }]}>View Details</Text>
@@ -205,11 +204,12 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     },
     cardExpired: { opacity: 0.8 },
     expiredOverlay: {
-        position: 'absolute', top: -10, right: -10, zIndex: 20, transform: [{ rotate: '12deg' }]
+        position: 'absolute', top: 12, right: 12, zIndex: 20, transform: [{ rotate: '15deg' }]
     },
     expiredBadge: {
-        backgroundColor: '#ef4444', paddingHorizontal: 12, paddingVertical: 6,
-        borderRadius: 8, borderWidth: 2, borderColor: '#fca5a5'
+        backgroundColor: '#dc2626', paddingHorizontal: 14, paddingVertical: 6,
+        borderRadius: 6, borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4, elevation: 4
     },
     expiredText: { color: '#fff', fontSize: 13, fontFamily: 'Outfit_700Bold', letterSpacing: 1 },
     eventImage: { width: '100%', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6' },
