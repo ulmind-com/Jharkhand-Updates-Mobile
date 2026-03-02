@@ -403,8 +403,9 @@ export default function JobDetailsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backButton}>
@@ -416,7 +417,10 @@ export default function JobDetailsScreen() {
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView contentContainerStyle={styles.scrollContent}>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                >
                     <MotiView style={styles.jobSection} from={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
                         {expired && (
                             <View style={styles.expiredBanner}>
@@ -484,7 +488,7 @@ export default function JobDetailsScreen() {
 
                     {/* Comments Section */}
                     <View style={styles.commentsSection}>
-                        <Text style={styles.commentsHeader}>Comments ({comments?.length || 0})</Text>
+                        <Text style={styles.commentsHeader}>Comments</Text>
 
                         {rootComments && rootComments.length > 0 ? (
                             rootComments.map(comment => (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, Dimensions, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,11 +43,25 @@ export default function PromotionsScreen() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [search, setSearch] = useState('');
     const [myVendor, setMyVendor] = useState(null);
+    const flatListRef = useRef(null);
+    const scrollOffset = useRef(0);
 
     useEffect(() => {
         fetchShops(0, false);
         checkMyVendor();
     }, []);
+
+    // Restore scroll position when navigating back from details
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            if (scrollOffset.current > 0 && flatListRef.current) {
+                setTimeout(() => {
+                    flatListRef.current?.scrollToOffset({ offset: scrollOffset.current, animated: false });
+                }, 50);
+            }
+        });
+        return unsubscribe;
+    }, [navigation]);
 
     const checkMyVendor = async () => {
         try {
@@ -267,6 +281,7 @@ export default function PromotionsScreen() {
                 </View>
             ) : (
                 <FlatList
+                    ref={flatListRef}
                     data={filteredShops}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderCard}
@@ -274,6 +289,8 @@ export default function PromotionsScreen() {
                     contentContainerStyle={styles.listContent}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.5}
+                    onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
+                    scrollEventThrottle={16}
                     ListFooterComponent={renderFooter}
                     ListEmptyComponent={renderEmptyComponent}
                     showsVerticalScrollIndicator={false}

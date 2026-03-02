@@ -25,14 +25,14 @@ export default function AdminDashboardScreen() {
             icon: "home",
             color: "#3b82f6", // Blue
             bg: "#dbeafe",
-            route: "ComingSoonAdmin"
+            route: "AdminProperties"
         },
         {
             title: "Property Leads",
             icon: "call",
             color: "#ea580c", // Orange
             bg: "#ffedd5",
-            route: "ComingSoonAdmin"
+            route: "AdminPropertyLeads"
         },
         {
             title: "Advertisements",

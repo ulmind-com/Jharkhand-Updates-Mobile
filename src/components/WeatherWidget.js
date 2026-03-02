@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -146,13 +146,55 @@ export default function WeatherWidget() {
         fetchWeather();
     }, []);
 
-    const getWeatherIcon = (conditionText, isDay = true) => {
+    // 🎥 Map weather condition → Lottie JSON file
+    const getLottieSource = (conditionText, isDay = true) => {
         const text = (conditionText || "").toLowerCase();
-        if (text.includes("thunder") || text.includes("storm")) return { name: "thunderstorm", color: "#fcd34d" };
-        if (text.includes("rain") || text.includes("drizzle") || text.includes("shower")) return { name: "rainy", color: "#93c5fd" };
-        if (text.includes("cloud") || text.includes("overcast")) return { name: "cloud", color: "#e5e7eb" };
-        if (text.includes("clear") || text.includes("sunny")) return { name: isDay ? "sunny" : "moon", color: isDay ? "#fcd34d" : "#c7d2fe" };
-        return { name: isDay ? "partly-sunny" : "cloudy-night", color: "#e5e7eb" };
+        if (text.includes("thunder") || text.includes("storm"))
+            return require('../../assets/lottie/weather/thunderstorm.json');
+        if (text.includes("rain") || text.includes("drizzle") || text.includes("shower"))
+            return isDay
+                ? require('../../assets/lottie/weather/rainy.json')
+                : require('../../assets/lottie/weather/night_rain.json');
+        if (text.includes("cloud") || text.includes("overcast"))
+            return isDay
+                ? require('../../assets/lottie/weather/cloudy.json')
+                : require('../../assets/lottie/weather/partly_cloudy_night.json');
+        if (text.includes("clear") || text.includes("sunny"))
+            return isDay
+                ? require('../../assets/lottie/weather/sunny.json')
+                : require('../../assets/lottie/weather/night.json');
+        // Default
+        return isDay
+            ? require('../../assets/lottie/weather/partly_cloudy.json')
+            : require('../../assets/lottie/weather/partly_cloudy_night.json');
+    };
+
+    // Lazy-load LottieView to avoid issues on web
+    const LottieView = Platform.OS !== 'web' ? require('lottie-react-native').default : null;
+
+    const WeatherAnimation = ({ conditionText, isDay }) => {
+        if (!LottieView) {
+            // Web fallback — keep Ionicon
+            const text = (conditionText || "").toLowerCase();
+            let iconName = "partly-sunny";
+            let iconColor = "#e5e7eb";
+
+            if (text.includes("thunder") || text.includes("storm")) { iconName = "thunderstorm"; iconColor = "#fcd34d"; }
+            else if (text.includes("rain") || text.includes("drizzle") || text.includes("shower")) { iconName = "rainy"; iconColor = "#93c5fd"; }
+            else if (text.includes("cloud") || text.includes("overcast")) { iconName = "cloud"; iconColor = "#e5e7eb"; }
+            else if (text.includes("clear") || text.includes("sunny")) { iconName = isDay ? "sunny" : "moon"; iconColor = isDay ? "#fcd34d" : "#c7d2fe"; }
+            else { iconName = isDay ? "partly-sunny" : "cloudy-night"; iconColor = "#e5e7eb"; }
+
+            return <Ionicons name={iconName} size={32} color={iconColor} style={styles.cloudIcon} />;
+        }
+        return (
+            <LottieView
+                source={getLottieSource(conditionText, isDay)}
+                autoPlay
+                loop
+                style={styles.lottieIcon}
+            />
+        );
     };
 
     if (loading) {
@@ -186,7 +228,7 @@ export default function WeatherWidget() {
                 <View style={styles.headerRow}>
                     <View style={{ flex: 1, paddingRight: 15 }}>
                         <Text style={styles.greeting}>Hello {userName}!</Text>
-                        <Text style={styles.subtext}>Welcome to Jharkhand Bihar Updates</Text>
+                        <Text style={styles.subtext}>Welcome to Jharkhand Updates</Text>
                     </View>
                     <View style={styles.weatherPill}>
                         <Ionicons name="time-outline" size={24} color="#f3f4f6" style={styles.cloudIcon} />
@@ -199,8 +241,6 @@ export default function WeatherWidget() {
             </MotiView>
         );
     }
-
-    const currentIcon = getWeatherIcon(weather?.condition, weather?.isDay);
 
     return (
         <MotiView
@@ -216,7 +256,10 @@ export default function WeatherWidget() {
                 </View>
 
                 <View style={styles.weatherPill}>
-                    <Ionicons name={currentIcon.name} size={32} color={currentIcon.color} style={styles.cloudIcon} />
+                    <WeatherAnimation
+                        conditionText={weather?.condition}
+                        isDay={weather?.isDay}
+                    />
                     <View>
                         <Text style={styles.dayText}>Today</Text>
                         <Text style={styles.tempLarge}>{weather?.temp || '--'}°C</Text>
@@ -241,13 +284,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     greeting: {
-        fontSize: 22, fontFamily: 'Outfit_400Regular', // Reduced from 26
+        fontSize: 22,
         fontFamily: 'Outfit_700Bold',
         color: '#ffffff',
         marginBottom: 4, // Tighter
     },
     subtext: {
-        fontSize: 14, fontFamily: 'Outfit_400Regular', // Reduced from 18
+        fontSize: 14,
         color: '#f3f4f6',
         fontFamily: 'Outfit_500Medium',
     },
@@ -259,17 +302,22 @@ const styles = StyleSheet.create({
         paddingVertical: 10, // Tighter
         paddingHorizontal: 16,
     },
+    lottieIcon: {
+        width: 52,
+        height: 52,
+        marginRight: 8,
+    },
     cloudIcon: {
         marginRight: 10, // Reduced
     },
     dayText: {
         color: '#d1d5db',
-        fontSize: 11, fontFamily: 'Outfit_400Regular', // Smaller
+        fontSize: 11,
         fontFamily: 'Outfit_600SemiBold',
     },
     tempLarge: {
         color: '#ffffff',
-        fontSize: 22, fontFamily: 'Outfit_400Regular', // Reduced
+        fontSize: 22,
         fontFamily: 'Outfit_700Bold',
         letterSpacing: -0.5,
     }

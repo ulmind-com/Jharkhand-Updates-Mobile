@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '../context/ThemeContext';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import ContentLoader, { Rect, Circle } from 'react-content-loader/native';
 import { cricketFetch } from '../services/CricketApi';
@@ -11,6 +12,26 @@ import { cricketFetch } from '../services/CricketApi';
 const _cache = {};
 function setCache(key, data) { _cache[key] = { data, ts: Date.now() }; }
 function getStaleCached(key) { return _cache[key] ? _cache[key].data : null; }
+
+// ─── Persistent storage cache (35-hour TTL) for Finished Matches ────
+const CACHE_TTL_LONG = 35 * 60 * 60 * 1000; // 35 hours
+async function getPersistentCache(key) {
+    try {
+        const str = await AsyncStorage.getItem(key);
+        if (!str) return null;
+        const entry = JSON.parse(str);
+        if (Date.now() - entry.ts > CACHE_TTL_LONG) {
+            await AsyncStorage.removeItem(key);
+            return null;
+        }
+        return entry.data;
+    } catch { return null; }
+}
+async function setPersistentCache(key, data) {
+    try {
+        await AsyncStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+    } catch { }
+}
 
 const { width } = Dimensions.get('window');
 
@@ -84,33 +105,74 @@ export default function CricketScorecardScreen() {
     const [activeTab, setActiveTab] = useState('batting');
 
     useEffect(() => {
-        if (matchId) {
+        if (!matchId) {
+            setLoading(false);
+            return;
+        }
+
+        const fetchScorecard = async (isSilent = false) => {
+            const cacheKey = `scorecard_${matchId}`;
+            if (!isSilent) setLoading(true);
+
+            try {
+                const json = await cricketFetch(`/match_scorecard?id=${matchId}`);
+                if (json.status !== 'success' || !json.data) {
+                    if (!isSilent) setData(null);
+                    return;
+                }
+                const d = json.data;
+                setCache(cacheKey, d);
+                setData(d);
+
+                // Cache to disk permanently if match is over
+                const s = (d.status || '').toLowerCase();
+                if (d.matchEnded || s.includes('won') || s.includes('draw') || s.includes('abandoned')) {
+                    await setPersistentCache(cacheKey, d);
+                }
+            } catch (err) {
+                console.warn('Scorecard Fetch Error:', err.message);
+                if (!isSilent) setData(null);
+            } finally {
+                if (!isSilent) setLoading(false);
+            }
+        };
+
+        const loadData = async () => {
             setActiveInnings(0);
             setActiveTab('batting');
             const cacheKey = `scorecard_${matchId}`;
             const cached = getStaleCached(cacheKey);
+
             if (cached) {
                 setData(cached);
                 setLoading(false);
-                return;
-            }
-
-            setLoading(true);
-            setData(null);
-            cricketFetch(`/match_scorecard?id=${matchId}`)
-                .then(json => {
-                    const d = json.data || null;
-                    if (d) setCache(cacheKey, d);
-                    setData(d);
+                fetchScorecard(true); // Background refresh even if cached in ram
+            } else {
+                setLoading(true);
+                const diskCached = await getPersistentCache(cacheKey);
+                if (diskCached) {
+                    setCache(cacheKey, diskCached); // Populate RAM cache again
+                    setData(diskCached);
                     setLoading(false);
-                })
-                .catch(() => setLoading(false));
-        } else {
-            setLoading(false);
-        }
+                    // Let's not fetchScorecard if we pulled a completely finished match from disk
+                } else {
+                    setData(null);
+                    fetchScorecard(false);
+                }
+            }
+        };
+
+        loadData();
+
+        // 60-second silent polling for realtime scorecard updates
+        const interval = setInterval(() => {
+            fetchScorecard(true);
+        }, 60000);
+
+        return () => clearInterval(interval);
     }, [matchId]);
 
-    const innings = data?.scorecard || [];
+    const innings = (data ? data.scorecard : null) || [];
     const cur = innings[activeInnings];
 
     const sm = StyleSheet.create({
@@ -173,7 +235,7 @@ export default function CricketScorecardScreen() {
                 <View style={{ flex: 1 }}>
                     <View style={sm.matchInfoBlock}>
                         <Text style={sm.matchTitleTxt} numberOfLines={2}>{matchTitle}</Text>
-                        {data?.status ? <Text style={sm.matchStatusTxt}>{data.status}</Text> : null}
+                        {data && data.status ? <Text style={sm.matchStatusTxt}>{data.status}</Text> : null}
                     </View>
 
                     {/* Innings Tabs */}
@@ -181,7 +243,7 @@ export default function CricketScorecardScreen() {
                         style={sm.inningsTabs}
                         contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
                         {innings.map((inn, idx) => {
-                            const sc = data.score?.find(s => (s.inning || '').toLowerCase().replace(/ inning \d/i, '') === (inn.inning || '').toLowerCase().replace(/ inning \d/i, ''));
+                            const sc = data.score ? data.score.find(s => (s.inning || '').toLowerCase().replace(/ inning \d/i, '') === (inn.inning || '').toLowerCase().replace(/ inning \d/i, '')) : null;
                             const runsSummary = sc ? `${sc.r}/${sc.w}` : '';
                             return (
                                 <TouchableOpacity key={idx}
@@ -192,7 +254,7 @@ export default function CricketScorecardScreen() {
                                         setActiveTab('batting');
                                     }}>
                                     <Text style={[sm.innTabTxt, activeInnings === idx && sm.innTabTxtActive]}>
-                                        {inn.inning || `Innings ${idx + 1}`}
+                                        {(inn.inning || `Innings ${idx + 1}`).replace(/ Inning \d/i, '').replace(/ inning \d/i, '')}
                                     </Text>
                                     {runsSummary ? <Text style={[sm.innOvers, activeInnings === idx && sm.innOversActive]}>{runsSummary}</Text> : null}
                                 </TouchableOpacity>
@@ -217,7 +279,7 @@ export default function CricketScorecardScreen() {
                     </View>
 
                     <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-                        {activeTab === 'batting' && cur?.batting && (
+                        {activeTab === 'batting' && cur && cur.batting && (
                             <View style={sm.tableWrap}>
                                 <View style={[sm.tableRow, sm.tableHeaderRow]}>
                                     <Text style={[sm.thTxt, { flex: 2.5 }]}>BATTER</Text>
@@ -232,7 +294,7 @@ export default function CricketScorecardScreen() {
                                     return (
                                         <View key={i} style={sm.tableRow}>
                                             <View style={{ flex: 2.5 }}>
-                                                <Text style={sm.playerName}>{b.batsman?.name || ''}</Text>
+                                                <Text style={sm.playerName}>{(b.batsman ? b.batsman.name : null) || ''}</Text>
                                                 <Text style={sm.dismissalTxt} numberOfLines={2}>{b['dismissal-text'] || ''}</Text>
                                             </View>
                                             <Text style={[sm.tdTxt, sm.tdRight, notOut && { color: '#059669', fontFamily: 'Outfit_800ExtraBold' }]}>{b.r}</Text>
@@ -246,7 +308,7 @@ export default function CricketScorecardScreen() {
                             </View>
                         )}
 
-                        {activeTab === 'bowling' && cur?.bowling && (
+                        {activeTab === 'bowling' && cur && cur.bowling && (
                             <View style={sm.tableWrap}>
                                 <View style={[sm.tableRow, sm.tableHeaderRow]}>
                                     <Text style={[sm.thTxt, { flex: 2 }]}>BOWLER</Text>
@@ -258,7 +320,7 @@ export default function CricketScorecardScreen() {
                                 </View>
                                 {cur.bowling.map((b, i) => (
                                     <View key={i} style={sm.tableRow}>
-                                        <Text style={[sm.playerName, { flex: 2 }]}>{b.bowler?.name || ''}</Text>
+                                        <Text style={[sm.playerName, { flex: 2 }]}>{(b.bowler ? b.bowler.name : null) || ''}</Text>
                                         <Text style={[sm.tdTxt, sm.tdRight]}>{b.o}</Text>
                                         <Text style={[sm.tdTxt, sm.tdRight]}>{b.m}</Text>
                                         <Text style={[sm.tdTxt, sm.tdRight]}>{b.r}</Text>

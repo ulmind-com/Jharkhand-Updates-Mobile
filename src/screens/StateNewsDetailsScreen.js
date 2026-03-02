@@ -16,6 +16,35 @@ import { Audio } from 'expo-av';
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
+// ── Fair round-robin property rotation (module-level, survives remounts) ──────
+let _propPool = [];
+let _propFetchTime = 0;
+let _propIndex = 0;
+
+function formatPropertyPrice(price) {
+    if (!price) return null;
+    const num = parseFloat(price);
+    if (num >= 10000000) return `₹${(num / 10000000).toFixed(1)} Cr`;
+    if (num >= 100000) return `₹${(num / 100000).toFixed(1)} L`;
+    return `₹${num.toLocaleString('en-IN')}`;
+}
+
+// Split text into ~15-line chunks at word boundaries (~750 chars each)
+function getContentChunks(text, charsPerChunk = 750) {
+    if (!text || text.length <= charsPerChunk) return [text];
+    const chunks = [];
+    let remaining = text;
+    while (remaining.length > charsPerChunk) {
+        const slice = remaining.slice(0, charsPerChunk);
+        const lastSpace = slice.lastIndexOf(' ');
+        const cutAt = lastSpace > 200 ? lastSpace : charsPerChunk;
+        chunks.push(remaining.slice(0, cutAt));
+        remaining = remaining.slice(cutAt).trim();
+    }
+    if (remaining) chunks.push(remaining);
+    return chunks;
+}
+
 const formatCommentDate = (date) => {
     const now = new Date();
     const commentDate = new Date(date);
@@ -199,6 +228,7 @@ export default function StateNewsDetailsScreen() {
     const [currentUser, setCurrentUser] = useState(null);
     const [imageRatio, setImageRatio] = useState(null);
     const [isImageViewVisible, setIsImageViewVisible] = useState(false);
+    const [featuredProperty, setFeaturedProperty] = useState(null);
 
     useEffect(() => {
         const fetchCurrentUser = async () => {
@@ -210,9 +240,34 @@ export default function StateNewsDetailsScreen() {
                 }
             } catch (e) { console.log('Error fetching user profile', e); }
         };
+
+        const fetchFeaturedProperty = async () => {
+            try {
+                const now = Date.now();
+                // Re-fetch pool every 30 minutes
+                if (!_propPool.length || (now - _propFetchTime > 30 * 60 * 1000)) {
+                    const res = await axios.get(`${BASE_URL}/properties`);
+                    if (res.data.success) {
+                        // Only active listings
+                        _propPool = (res.data.data || []).filter(
+                            p => p.propertyStatus !== 'SOLD' && p.propertyStatus !== 'RENTED'
+                        );
+                        _propFetchTime = now;
+                    }
+                }
+                if (_propPool.length > 0) {
+                    // Fair round-robin — cycle through all properties across visits
+                    const idx = _propIndex % _propPool.length;
+                    _propIndex++;
+                    setFeaturedProperty(_propPool[idx]);
+                }
+            } catch (e) { /* silently fail — ads are non-critical */ }
+        };
+
         fetchCurrentUser();
         fetchNewsDetails();
         fetchComments();
+        fetchFeaturedProperty();
     }, [newsId]);
 
     useEffect(() => {
@@ -369,7 +424,13 @@ export default function StateNewsDetailsScreen() {
     if (!news) return null;
 
     const authorName = news.author ? `${news.author.firstName} ${news.author.lastName}` : 'Jharkhand Updates';
-    const dateStr = new Date(news.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    const _d = new Date(news.createdAt);
+    const _ord = (n) => { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+    const _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const _h = _d.getHours(); const _min = _d.getMinutes().toString().padStart(2, '0');
+    const _ampm = _h >= 12 ? 'PM' : 'AM'; const _h12 = _h % 12 || 12;
+    const dateStr = `${_ord(_d.getDate())} ${_months[_d.getMonth()]} ${_d.getFullYear()}, ${_h12}:${_min} ${_ampm}`;
+
     const isVideo = news.imageUrls?.[0]?.match(/\.(mp4|webm|ogg)$/i) || news.imageUrls?.[0]?.includes('video');
 
     const handleShare = async () => {
@@ -471,24 +532,99 @@ export default function StateNewsDetailsScreen() {
                             </View>
                         </View>
 
-                        {/* Content */}
+                        {/* Content: chunks of ~15 lines with property ads woven in */}
+                        {(() => {
+                            const cleanContent = (news.content || '').replace(/<[^>]*>?/gm, '').trim();
+                            const chunks = getContentChunks(cleanContent);
+                            const hasMore = cleanContent.length > 1000;
 
-                        <Text style={styles.newsContent} numberOfLines={seeMore ? undefined : 8}>
-                            {news.content.replace(/<[^>]*>?/gm, "").trim()}
-                        </Text>
+                            // Helper: renders one property ad from the cycling pool
+                            const renderPropAd = (poolOffset) => {
+                                if (!_propPool.length) return null;
+                                const prop = _propPool[(_propIndex + poolOffset) % _propPool.length];
+                                return (
+                                    <TouchableOpacity
+                                        key={`prop-${poolOffset}`}
+                                        style={[styles.propSpotlight, { marginVertical: 16 }]}
+                                        onPress={() => navigation.navigate('PropertyDetails', { propertyId: prop.id })}
+                                        activeOpacity={0.88}
+                                    >
+                                        <View style={styles.propSpotHeader}>
+                                            <Ionicons name="home" size={12} color={isDarkMode ? '#6ee7b7' : '#059669'} />
+                                            <Text style={styles.propSpotLabel}>Real Estate · Featured</Text>
+                                        </View>
+                                        <View style={styles.propSpotRow}>
+                                            {prop.imageUrls?.length > 0 ? (
+                                                <Image source={{ uri: prop.imageUrls[0] }} style={styles.propSpotImg} resizeMode="cover" />
+                                            ) : (
+                                                <View style={[styles.propSpotImg, { backgroundColor: colors.surfaceDeeper, alignItems: 'center', justifyContent: 'center' }]}>
+                                                    <Ionicons name="home-outline" size={28} color={colors.textDim} />
+                                                </View>
+                                            )}
+                                            <View style={styles.propSpotInfo}>
+                                                <Text style={styles.propSpotTitle} numberOfLines={2}>{prop.title}</Text>
+                                                {prop.price ? <Text style={styles.propSpotPrice}>{formatPropertyPrice(prop.price)}</Text> : null}
+                                                <View style={styles.propSpotLoc}>
+                                                    <Ionicons name="location-outline" size={12} color={isDarkMode ? '#6ee7b7' : '#059669'} />
+                                                    <Text style={styles.propSpotLocTxt} numberOfLines={1}>
+                                                        {[prop.locality, prop.city, prop.district].filter(Boolean).join(', ')}
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.propSpotCta}>
+                                                    <Text style={styles.propSpotCtaTxt}>View Property</Text>
+                                                    <Ionicons name="arrow-forward" size={13} color={isDarkMode ? '#6ee7b7' : '#059669'} />
+                                                </View>
+                                            </View>
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            };
 
-                        {news.content.length > 300 && (
-                            <TouchableOpacity onPress={() => setSeeMore(!seeMore)} style={styles.seeMoreBtn}>
-                                <Text style={styles.seeMoreText}>{seeMore ? "See Less" : "See More"}</Text>
-                            </TouchableOpacity>
-                        )}
+                            if (!seeMore) {
+                                // COLLAPSED: first chunk (15 lines) + first ad + 5 lines of next chunk + See More
+                                return (
+                                    <>
+                                        <Text style={styles.newsContent}>{chunks[0]}</Text>
+                                        {chunks.length > 1 && renderPropAd(0)}
+                                        {chunks.length > 1 && (
+                                            <Text style={styles.newsContent} numberOfLines={5}>
+                                                {chunks[1]}
+                                            </Text>
+                                        )}
+                                        {hasMore && (
+                                            <TouchableOpacity onPress={() => setSeeMore(true)} style={styles.seeMoreBtn}>
+                                                <Text style={styles.seeMoreText}>See More</Text>
+                                            </TouchableOpacity>
+                                        )}
+                                    </>
+                                );
+                            }
+
+                            // EXPANDED: all chunks with cycling property ads between them
+                            return (
+                                <>
+                                    {chunks.map((chunk, idx) => (
+                                        <React.Fragment key={idx}>
+                                            <Text style={styles.newsContent}>{chunk}</Text>
+                                            {idx < chunks.length - 1 && renderPropAd(idx)}
+                                        </React.Fragment>
+                                    ))}
+                                    {hasMore && (
+                                        <TouchableOpacity onPress={() => setSeeMore(false)} style={styles.seeMoreBtn}>
+                                            <Text style={styles.seeMoreText}>See Less</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </MotiView>
+
 
                     {/* Comments Section */}
                     <View style={styles.commentsSection}>
                         <View style={styles.commentsHeaderRow}>
                             <Ionicons name="chatbubble-ellipses" size={24} color={isDarkMode ? '#e879f9' : '#c084fc'} />
-                            <Text style={styles.commentsHeader}>Comments ({comments?.length || 0})</Text>
+                            <Text style={styles.commentsHeader}>Comments</Text>
                         </View>
 
                         {rootComments.length > 0 ? (
@@ -592,8 +728,43 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     locationText: { fontSize: 14, fontFamily: 'Outfit_500Medium', color: colors.textDim },
     shareButton: { backgroundColor: colors.primary, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', elevation: 2 },
 
-    newsTitle: { fontSize: 22, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 16, lineHeight: 32 },
+    newsTitle: { fontSize: 24, fontFamily: 'Outfit_700Bold', fontWeight: 'bold', color: colors.text, marginBottom: 16, lineHeight: 34 },
     newsContent: { fontSize: 16, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 26, textAlign: 'justify' },
+
+    // Property Spotlight styles
+    propSpotlight: {
+        backgroundColor: colors.surface,
+        borderRadius: 18,
+        marginBottom: 24,
+        overflow: 'hidden',
+        borderWidth: 1.5,
+        borderColor: isDarkMode ? '#134e2b' : '#bbf7d0',
+        elevation: 4,
+        shadowColor: '#059669',
+        shadowOpacity: isDarkMode ? 0.15 : 0.08,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 3 },
+    },
+    propSpotHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 14,
+        paddingVertical: 7,
+        backgroundColor: isDarkMode ? 'rgba(5,150,105,0.12)' : '#f0fdf4',
+        borderBottomWidth: 1,
+        borderBottomColor: isDarkMode ? '#134e2b' : '#bbf7d0',
+    },
+    propSpotLabel: { fontSize: 11, fontFamily: 'Outfit_600SemiBold', color: isDarkMode ? '#6ee7b7' : '#059669', letterSpacing: 0.5 },
+    propSpotRow: { flexDirection: 'row', padding: 12, gap: 12 },
+    propSpotImg: { width: 100, height: 100, borderRadius: 12, overflow: 'hidden' },
+    propSpotInfo: { flex: 1, justifyContent: 'space-between' },
+    propSpotTitle: { fontSize: 14, fontFamily: 'Outfit_700Bold', color: colors.text, lineHeight: 20, marginBottom: 4 },
+    propSpotPrice: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: isDarkMode ? '#34d399' : '#047857', marginBottom: 4 },
+    propSpotLoc: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 6 },
+    propSpotLocTxt: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: colors.textDim, flex: 1 },
+    propSpotCta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: isDarkMode ? 'rgba(5,150,105,0.15)' : '#dcfce7', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+    propSpotCtaTxt: { fontSize: 12, fontFamily: 'Outfit_700Bold', color: isDarkMode ? '#6ee7b7' : '#059669' },
 
     seeMoreBtn: { marginTop: 12 },
     seeMoreText: { color: colors.primary, fontFamily: 'Outfit_700Bold', fontSize: 15 },

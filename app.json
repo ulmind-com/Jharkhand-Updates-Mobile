@@ -3,8 +3,9 @@
     "name": "Jharkhand Updates",
     "slug": "InYourArea-Mobile",
     "version": "1.0.0",
+    "scheme": "jharkhand",
     "orientation": "portrait",
-    "icon": "./assets/logo.png",
+    "icon": "./assets/julogo_icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -14,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.inyourarea.app",
+      "bundleIdentifier": "com.jharkhand.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "InYourArea requires your location to show relevant local news, community events, properties, and weather in your surrounding area.",
         "NSPhotoLibraryUsageDescription": "InYourArea requires access to your photo library to attach media to your community posts, job listings, properties, and events.",
@@ -23,11 +24,12 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.png",
+        "foregroundImage": "./assets/julogo_adaptive.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.inyourarea.app",
+      "googleServicesFile": "./google-services.json",
+      "package": "com.jharkhand.app",
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -51,9 +53,12 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/notification_icon.png",
           "color": "#006A4E",
-          "androidMode": "default"
+          "androidMode": "default",
+          "sounds": [
+            "./assets/sounds/startup_chime.wav"
+          ]
         }
       ],
       [
@@ -62,7 +67,7 @@
       [
         "onesignal-expo-plugin",
         {
-          "mode": "development"
+          "mode": "production"
         }
       ]
     ],
@@ -74,10 +79,10 @@
               "appExtensions": [
                 {
                   "targetName": "OneSignalNotificationServiceExtension",
-                  "bundleIdentifier": "com.inyourarea.app.OneSignalNotificationServiceExtension",
+                  "bundleIdentifier": "com.jharkhand.app.OneSignalNotificationServiceExtension",
                   "entitlements": {
                     "com.apple.security.application-groups": [
-                      "group.com.inyourarea.app.onesignal"
+                      "group.com.jharkhand.app.onesignal"
                     ]
                   }
                 }

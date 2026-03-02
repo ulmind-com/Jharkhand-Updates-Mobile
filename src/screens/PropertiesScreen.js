@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Vibration, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, ScrollView } from 'react-native';
@@ -31,10 +31,24 @@ export default function PropertiesScreen() {
         propertyStatus: "ALL",
     });
     const [isFilterVisible, setIsFilterVisible] = useState(false);
+    const flatListRef = useRef(null);
+    const scrollOffset = useRef(0);
 
     useEffect(() => {
         fetchProperties();
     }, []);
+
+    // Restore scroll position when navigating back from details
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            if (scrollOffset.current > 0 && flatListRef.current) {
+                setTimeout(() => {
+                    flatListRef.current?.scrollToOffset({ offset: scrollOffset.current, animated: false });
+                }, 50);
+            }
+        });
+        return unsubscribe;
+    }, [navigation]);
 
     useEffect(() => {
         applyFilters();
@@ -342,10 +356,13 @@ export default function PropertiesScreen() {
                 </View>
             ) : (
                 <FlatList
+                    ref={flatListRef}
                     data={filteredProperties}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderProperty}
                     contentContainerStyle={styles.listContent}
+                    onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
+                    scrollEventThrottle={16}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="home-outline" size={64} color={colors.textDim} />

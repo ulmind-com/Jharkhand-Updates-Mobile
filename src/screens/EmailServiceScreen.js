@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+﻿import React, { useState, useContext } from 'react';
 import { Vibration, View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -109,7 +109,7 @@ export default function EmailServiceScreen() {
                     </View>
 
                     <Text style={styles.termsText}>
-                        By signing up, you agree to the Terms of Service and How we use your data. Jharkhand Bihar Updates will use your sign-up to email content, improve understanding of you. These may include adverts from us and 3rd parties based on our understanding.{" "}
+                        By signing up, you agree to the Terms of Service and How we use your data. Jharkhand Updates will use your sign-up to email content, improve understanding of you. These may include adverts from us and 3rd parties based on our understanding.{" "}
                         <Text style={styles.unsubLink} onPress={() => setModalVisible(true)}>You can unsubscribe at any time.</Text>
                     </Text>
                 </View>
@@ -260,3 +260,4 @@ const styles = StyleSheet.create({
     modalTitle: { fontSize: 22, fontFamily: 'Outfit_700Bold' },
     modalSubtitle: { fontSize: 14, fontFamily: 'Outfit_400Regular', lineHeight: 20 },
 });
+

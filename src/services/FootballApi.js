@@ -128,20 +128,48 @@ export function fbScoreText(m) {
 
 // ─── Exported fetch functions ──────────────────────────────────────
 
-/** Fetch live matches (IN_PLAY + PAUSED) */
+/** Fetch live matches (IN_PLAY + PAUSED/halftime) */
 export async function fetchFootballLive() {
-    const json = await fbFetch('/matches?status=IN_PLAY');
-    return filterAndSortFootball(json.matches || []);
+    // football-data.org requires separate calls for IN_PLAY and PAUSED
+    const [inPlayRes, pausedRes] = await Promise.allSettled([
+        fbFetch('/matches?status=IN_PLAY'),
+        fbFetch('/matches?status=PAUSED'),
+    ]);
+    const inPlay = inPlayRes.status === 'fulfilled' ? (inPlayRes.value.matches || []) : [];
+    const paused = pausedRes.status === 'fulfilled' ? (pausedRes.value.matches || []) : [];
+    // Merge and deduplicate by match id
+    const seen = new Set();
+    const merged = [...inPlay, ...paused].filter(m => {
+        if (seen.has(m.id)) return false;
+        seen.add(m.id);
+        return true;
+    });
+    return filterAndSortFootball(merged);
 }
 
-/** Fetch upcoming matches (next 7 days) */
+/** Fetch upcoming matches (SCHEDULED + TIMED, next 7 days) */
 export async function fetchFootballUpcoming() {
     const today = new Date();
     const plus7 = new Date(today);
     plus7.setDate(plus7.getDate() + 7);
     const fmt = d => d.toISOString().split('T')[0];
-    const json = await fbFetch(`/matches?dateFrom=${fmt(today)}&dateTo=${fmt(plus7)}&status=SCHEDULED`);
-    return filterAndSortFootball(json.matches || []);
+    const dateRange = `dateFrom=${fmt(today)}&dateTo=${fmt(plus7)}`;
+    // Fetch both SCHEDULED and TIMED in parallel (free tier needs separate calls)
+    const [schedRes, timedRes] = await Promise.allSettled([
+        fbFetch(`/matches?${dateRange}&status=SCHEDULED`),
+        fbFetch(`/matches?${dateRange}&status=TIMED`),
+    ]);
+    const scheduled = schedRes.status === 'fulfilled' ? (schedRes.value.matches || []) : [];
+    const timed = timedRes.status === 'fulfilled' ? (timedRes.value.matches || []) : [];
+    const seen = new Set();
+    const merged = [...timed, ...scheduled].filter(m => {
+        if (seen.has(m.id)) return false;
+        seen.add(m.id);
+        return true;
+    });
+    // Sort by date ascending (soonest first), then by priority
+    merged.sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+    return filterAndSortFootball(merged);
 }
 
 /** Fetch recent finished matches (last 7 days) */

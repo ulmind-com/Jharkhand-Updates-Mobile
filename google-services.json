@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "910260231123",
+    "project_id": "jharkhandupdates-001",
+    "storage_bucket": "jharkhandupdates-001.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:910260231123:android:b8f9b95f3d58c682492d26",
+        "android_client_info": {
+          "package_name": "com.jharkhand.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBuqFHPrZBeHMbmaJoFi87MTp2js14IXtQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

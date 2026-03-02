@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
-import { Vibration, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import {
+    View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet,
+    Image, KeyboardAvoidingView, Platform, ActivityIndicator,
+    Dimensions, Animated, FlatList, Alert
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -8,234 +12,467 @@ import * as ImagePicker from 'expo-image-picker';
 import * as SecureStore from 'expo-secure-store';
 import Toast from 'react-native-toast-message';
 import axios from 'axios';
-import { Picker } from '@react-native-picker/picker';
-import { Audio } from 'expo-av';
+import { MotiView } from 'moti';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const SWIPER_H = SCREEN_H - 320; // explicit height: total minus header/steps/thumbs/actions
 
 export default function CreateStateNewsScreen() {
     const navigation = useNavigation();
+    const [step, setStep] = useState(0); // 0 = Images, 1 = Details
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [stateName, setStateName] = useState('');
     const [images, setImages] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [previewIndex, setPreviewIndex] = useState(0);
+    const flatListRef = useRef(null);
+    const slideAnim = useRef(new Animated.Value(0)).current;
+    const progressAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         (async () => {
             if (Platform.OS !== 'web') {
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== 'granted') {
-                    Toast.show({ type: 'error', text1: 'Permission Denied', text2: 'We need camera roll permissions.' });
-                }
+                await ImagePicker.requestMediaLibraryPermissionsAsync();
             }
         })();
     }, []);
 
-    const pickImage = async () => {
+    useEffect(() => {
+        Animated.spring(progressAnim, {
+            toValue: step === 0 ? 0.5 : 1,
+            useNativeDriver: false,
+        }).start();
+    }, [step]);
+
+    const goToStep1 = () => {
+        if (images.length === 0) {
+            Alert.alert("Select Image", "Please select at least one image to continue.");
+            return;
+        }
+        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        Animated.timing(slideAnim, {
+            toValue: -SCREEN_W,
+            duration: 300,
+            useNativeDriver: true,
+        }).start(() => setStep(1));
+    };
+
+    const goBack = () => {
+        if (step === 0) {
+            navigation.goBack();
+        } else {
+            if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setStep(0);
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }).start();
+        }
+    };
+
+    const pickFromGallery = async () => {
         let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsMultipleSelection: true,
-            quality: 0.8,
+            quality: 0.85,
+            selectionLimit: 10,
         });
-
         if (!result.canceled) {
-            const selectedImages = result.assets.map(asset => ({
-                uri: asset.uri,
-                type: asset.mimeType || 'image/jpeg',
-                name: asset.fileName || `image_${new Date().getTime()}.jpg`
+            const picked = result.assets.map(a => ({
+                uri: a.uri,
+                type: a.mimeType || 'image/jpeg',
+                name: a.fileName || `img_${Date.now()}.jpg`,
             }));
-            setImages(prev => [...prev, ...selectedImages]);
+            setImages(prev => [...prev, ...picked]);
         }
     };
 
-    const removeImage = (indexToRemove) => {
-        setImages(images.filter((_, index) => index !== indexToRemove));
+    const pickFromCamera = async () => {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert("Permission Denied", "Camera access is required.");
+            return;
+        }
+        let result = await ImagePicker.launchCameraAsync({ quality: 0.85 });
+        if (!result.canceled) {
+            const a = result.assets[0];
+            setImages(prev => [...prev, { uri: a.uri, type: a.mimeType || 'image/jpeg', name: a.fileName || `img_${Date.now()}.jpg` }]);
+        }
+    };
+
+    const removeImage = (idx) => {
+        const next = images.filter((_, i) => i !== idx);
+        setImages(next);
+        // Stay in bounds
+        if (previewIndex >= next.length) setPreviewIndex(Math.max(0, next.length - 1));
+    };
+
+    const setCover = (idx) => {
+        if (idx === 0) return;
+        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        setImages(prev => {
+            const next = [...prev];
+            const [picked] = next.splice(idx, 1);
+            next.unshift(picked);
+            return next;
+        });
+        // Scroll back to first
+        flatListRef.current?.scrollToIndex({ index: 0, animated: true });
+        setPreviewIndex(0);
+    };
+
+    const scrollToThumb = (idx) => {
+        setPreviewIndex(idx);
+        flatListRef.current?.scrollToIndex({ index: idx, animated: true });
     };
 
     const handleSubmit = async () => {
-        if (!title.trim() || !content.trim()) {
-            Toast.show({ type: 'error', text1: 'Missing Fields', text2: 'Please fill in the News Title and Content.' });
+        if (!title.trim()) {
+            Toast.show({ type: 'error', text1: 'Missing Title', text2: 'Please enter a news headline.' });
             return;
         }
         if (!stateName) {
-            Toast.show({ type: 'error', text1: 'Missing State', text2: 'Please select a state.' });
+            Toast.show({ type: 'error', text1: 'Select State', text2: 'Please select Jharkhand or Bihar.' });
             return;
         }
-        if (images.length === 0) {
-            Toast.show({ type: 'error', text1: 'Missing Image', text2: 'Please upload at least one image.' });
+        if (!content.trim()) {
+            Toast.show({ type: 'error', text1: 'Missing Content', text2: 'Please write the news article content.' });
             return;
         }
 
         setLoading(true);
         try {
             const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
-
-            if (!token) {
-                Toast.show({ type: 'error', text1: 'Unauthorized', text2: 'Please log in again.' });
-                return;
-            }
-
             const formData = new FormData();
-
-            const newsPayload = { title: title.trim(), content: content.trim(), stateName };
-
-            formData.append(
-                "news",
-                Platform.OS === 'web'
-                    ? new Blob([JSON.stringify(newsPayload)], { type: "application/json" })
-                    : JSON.stringify(newsPayload)
-            );
-
-            images.forEach((img) => {
-                formData.append("images", { uri: img.uri, type: img.type, name: img.name });
-            });
+            formData.append("news", JSON.stringify({ title: title.trim(), content: content.trim(), stateName }));
+            images.forEach(img => formData.append("images", { uri: img.uri, type: img.type, name: img.name }));
 
             const res = await axios.post(`${BASE_URL}/state-news`, formData, {
                 headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${token}` },
             });
 
             if (res.data.success) {
-                Toast.show({ type: 'success', text1: 'Success', text2: 'News posted successfully!' });
-
-                try {
-                    const { sound } = await Audio.Sound.createAsync(
-                        require('../../assets/sounds/success.mp3'),
-                        { shouldPlay: true }
-                    );
-                    sound.setOnPlaybackStatusUpdate(status => {
-                        if (status.didJustFinish) {
-                            sound.unloadAsync();
-                        }
-                    });
-                } catch (audioErr) {
-                    console.log("Audio play error", audioErr);
-                }
-
-                setTimeout(() => {
-                    navigation.navigate('Main', { screen: 'State News' });
-                }, 1000);
+                if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Toast.show({ type: 'success', text1: '🎉 Published!', text2: 'News is now live on the feed.' });
+                setTimeout(() => navigation.navigate('Main', { screen: 'State News' }), 1200);
             }
-        } catch (error) {
-            console.error("News post error:", error);
-            Toast.show({ type: 'error', text1: 'Upload Failed', text2: error.response?.data?.message || 'Could not post news.' });
+        } catch (err) {
+            Toast.show({ type: 'error', text1: 'Upload Failed', text2: err.response?.data?.message || 'Could not post news.' });
         } finally {
             setLoading(false);
         }
     };
 
+    // ──────────────────────────────────────────────
+    // STEP 0: IMAGE PICKER
+    // ──────────────────────────────────────────────
+    const renderImageStep = () => (
+        <View style={styles.stepContainer}>
+            {/* Thumbnails Row */}
+            {images.length > 0 && (
+                <View style={styles.thumbsRow}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}>
+                        {images.map((img, idx) => (
+                            <TouchableOpacity
+                                key={idx}
+                                style={[
+                                    styles.selectedThumb,
+                                    idx === previewIndex && styles.selectedThumbActive,
+                                    idx === 0 && styles.selectedThumbCover,
+                                ]}
+                                onPress={() => scrollToThumb(idx)}
+                                activeOpacity={0.75}
+                            >
+                                <Image source={{ uri: img.uri }} style={styles.thumbImg} />
+                                <TouchableOpacity
+                                    style={styles.thumbRemove}
+                                    onPress={() => removeImage(idx)}
+                                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                                >
+                                    <Ionicons name="close-circle" size={19} color="#fff" />
+                                </TouchableOpacity>
+                                {idx === 0 && (
+                                    <View style={styles.coverBadge}>
+                                        <Ionicons name="star" size={9} color="#fbbf24" />
+                                        <Text style={styles.coverText}> Cover</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        ))}
+                        {/* Add More Button */}
+                        <TouchableOpacity style={styles.addMoreThumb} onPress={pickFromGallery}>
+                            <Ionicons name="add" size={28} color="#10b981" />
+                        </TouchableOpacity>
+                    </ScrollView>
+                </View>
+            )}
+
+            {/* Big Preview or Empty State */}
+            {images.length === 0 ? (
+                <View style={styles.emptyPickerArea}>
+                    <Ionicons name="images-outline" size={80} color="#d1fae5" />
+                    <Text style={styles.emptyPickerTitle}>Add Photos</Text>
+                    <Text style={styles.emptyPickerSub}>Pick from gallery or use camera</Text>
+                </View>
+            ) : (
+                <View style={styles.swiperWrap}>
+                    <FlatList
+                        ref={flatListRef}
+                        data={images}
+                        keyExtractor={(_, i) => i.toString()}
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        onMomentumScrollEnd={(e) => {
+                            const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_W);
+                            setPreviewIndex(idx);
+                        }}
+                        renderItem={({ item }) => (
+                            <View style={styles.swiperSlide}>
+                                <Image
+                                    source={{ uri: item.uri }}
+                                    style={styles.swiperImage}
+                                    resizeMode="contain"
+                                />
+                            </View>
+                        )}
+                    />
+                    {/* Page dots */}
+                    {images.length > 1 && (
+                        <View style={styles.pageDots}>
+                            {images.map((_, i) => (
+                                <View key={i} style={[styles.dot, i === previewIndex && styles.dotActive]} />
+                            ))}
+                        </View>
+                    )}
+                    {/* Set as Cover pill (only shown for non-cover images) */}
+                    {previewIndex > 0 && (
+                        <TouchableOpacity style={styles.setCoverPill} onPress={() => setCover(previewIndex)} activeOpacity={0.85}>
+                            <Ionicons name="star" size={15} color="#fbbf24" />
+                            <Text style={styles.setCoverText}>Set as Cover</Text>
+                        </TouchableOpacity>
+                    )}
+                    {/* Counter */}
+                    <View style={styles.previewCountBadge}>
+                        <Text style={styles.previewCountText}>{previewIndex + 1} / {images.length}</Text>
+                    </View>
+                </View>
+            )}
+
+            {/* Action Buttons */}
+            <View style={styles.pickerActions}>
+                <TouchableOpacity style={styles.pickerBtn} onPress={pickFromCamera}>
+                    <Ionicons name="camera" size={22} color="#fff" />
+                    <Text style={styles.pickerBtnText}>Camera</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.pickerBtn, { backgroundColor: '#047857' }]} onPress={pickFromGallery}>
+                    <Ionicons name="images" size={22} color="#fff" />
+                    <Text style={styles.pickerBtnText}>Gallery</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+
+    // ──────────────────────────────────────────────
+    // STEP 1: DETAILS
+    // ──────────────────────────────────────────────
+    const renderDetailsStep = () => (
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.detailsScroll} showsVerticalScrollIndicator={false}>
+
+                {/* Image Strip */}
+                {images.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageStrip}>
+                        {images.map((img, idx) => (
+                            <TouchableOpacity key={idx} onPress={() => setPreviewIndex(idx)}>
+                                <Image
+                                    source={{ uri: img.uri }}
+                                    style={[styles.stripImg, idx === previewIndex && styles.stripImgActive]}
+                                />
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                )}
+
+                {/* Title */}
+                <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Headline *</Text>
+                    <TextInput
+                        style={styles.fieldInput}
+                        placeholder="Write a compelling headline..."
+                        placeholderTextColor="#9ca3af"
+                        value={title}
+                        onChangeText={setTitle}
+                        returnKeyType="next"
+                    />
+                </View>
+
+                {/* State Chip Tabs */}
+                <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>State *</Text>
+                    <View style={styles.chipRow}>
+                        {['Jharkhand', 'Bihar'].map(s => (
+                            <TouchableOpacity
+                                key={s}
+                                style={[styles.chip, stateName === s && styles.chipActive]}
+                                onPress={() => {
+                                    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    setStateName(s);
+                                }}
+                            >
+                                <Text style={[styles.chipText, stateName === s && styles.chipTextActive]}>{s}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Content */}
+                <View style={styles.fieldGroup}>
+                    <Text style={styles.fieldLabel}>Article Content *</Text>
+                    <TextInput
+                        style={[styles.fieldInput, styles.textArea]}
+                        placeholder="Write the full news article here..."
+                        placeholderTextColor="#9ca3af"
+                        value={content}
+                        onChangeText={setContent}
+                        multiline
+                        textAlignVertical="top"
+                    />
+                </View>
+
+                <TouchableOpacity
+                    style={[styles.publishBtn, loading && { opacity: 0.7 }]}
+                    onPress={handleSubmit}
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <>
+                            <Ionicons name="send" size={20} color="#fff" />
+                            <Text style={styles.publishBtnText}>Publish News</Text>
+                        </>
+                    )}
+                </TouchableOpacity>
+            </ScrollView>
+        </KeyboardAvoidingView>
+    );
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
+            {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={styles.backBtn}>
-                    <Ionicons name="arrow-back" size={24} color="#047857" />
+                <TouchableOpacity onPress={goBack} style={styles.headerBtn}>
+                    <Ionicons name={step === 0 ? "close" : "arrow-back"} size={26} color="#1f2937" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Post State News</Text>
-                <View style={{ width: 24 }} />
+                {step === 0 ? (
+                    <TouchableOpacity
+                        style={[styles.nextBtn, images.length === 0 && { opacity: 0.4 }]}
+                        onPress={goToStep1}
+                        disabled={images.length === 0}
+                    >
+                        <Text style={styles.nextBtnText}>Next</Text>
+                        <Ionicons name="arrow-forward" size={18} color="#10b981" />
+                    </TouchableOpacity>
+                ) : (
+                    <View style={{ width: 60 }} />
+                )}
             </View>
 
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-                <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* Progress Bar */}
+            <View style={styles.progressTrack}>
+                <Animated.View
+                    style={[
+                        styles.progressFill,
+                        { width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }
+                    ]}
+                />
+            </View>
 
-                    <View style={styles.infoBox}>
-                        <Ionicons name="information-circle-outline" size={20} color="#047857" />
-                        <Text style={styles.infoText}>This is an Admin-only action. News will be published directly to the selected State's feed.</Text>
-                    </View>
+            {/* Step Labels */}
+            <View style={styles.stepLabels}>
+                <Text style={[styles.stepLabel, step === 0 && styles.stepLabelActive]}>① Select Photos</Text>
+                <Text style={[styles.stepLabel, step === 1 && styles.stepLabelActive]}>② Add Details</Text>
+            </View>
 
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>News Title *</Text>
-                        <TextInput style={styles.input} placeholder="Enter headline" value={title} onChangeText={setTitle} placeholderTextColor="#9ca3af" />
-                    </View>
+            {/* Content */}
+            <View style={{ flex: 1 }}>
+                {step === 0 ? renderImageStep() : renderDetailsStep()}
+            </View>
 
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Select State *</Text>
-                        <View style={styles.pickerContainer}>
-                            <Picker selectedValue={stateName} onValueChange={setStateName}>
-                                <Picker.Item label="-- Choose a State --" value="" />
-                                <Picker.Item label="Bihar" value="Bihar" />
-                                <Picker.Item label="Jharkhand" value="Jharkhand" />
-                            </Picker>
-                        </View>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Content *</Text>
-                        <TextInput
-                            style={[styles.input, styles.textArea]}
-                            placeholder="Write your news article here..."
-                            value={content}
-                            onChangeText={setContent}
-                            multiline
-                            numberOfLines={10}
-                            textAlignVertical="top"
-                            placeholderTextColor="#9ca3af"
-                        />
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Images *</Text>
-                        <View style={styles.imageGrid}>
-                            {images.map((img, idx) => (
-                                <View key={idx} style={styles.imageWrapper}>
-                                    <Image source={{ uri: img.uri }} style={styles.previewImage} />
-                                    <TouchableOpacity style={styles.removeBtn} onPress={() => removeImage(idx)}>
-                                        <Ionicons name="close-circle" size={24} color="#ef4444" />
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
-                            <TouchableOpacity style={styles.uploadBtn} onPress={pickImage}>
-                                <Ionicons name="camera-outline" size={32} color="#10b981" />
-                                <Text style={styles.uploadText}>Add Photos</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    <TouchableOpacity
-                        style={[styles.submitBtn, loading && { opacity: 0.7 }]}
-                        onPress={() => {
-                            if (Platform.OS !== 'web') {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            }
-                            handleSubmit();
-                        }}
-                        disabled={loading}
-                    >
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Publish News</Text>}
-                    </TouchableOpacity>
-
-                </ScrollView>
-            </KeyboardAvoidingView>
             <Toast />
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#f9fafb' },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-    backBtn: { padding: 4 },
-    headerTitle: { fontSize: 20, fontFamily: 'Outfit_700Bold', color: '#047857' },
-    scrollContent: { padding: 20 },
-    infoBox: { flexDirection: 'row', backgroundColor: '#ecfdf5', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#a7f3d0', marginBottom: 20, alignItems: 'center' },
-    infoText: { flex: 1, marginLeft: 8, fontSize: 13, fontFamily: 'Outfit_400Regular', color: '#047857', lineHeight: 18 },
-    inputGroup: { marginBottom: 20 },
-    label: { fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: '#374151', marginBottom: 8 },
-    input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 12, fontSize: 16, fontFamily: 'Outfit_400Regular', color: '#1f2937' },
-    textArea: { height: 180 },
-    pickerContainer: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, backgroundColor: '#fff', overflow: 'hidden' },
-    imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    imageWrapper: { position: 'relative', width: 100, height: 100, borderRadius: 8, overflow: 'hidden' },
-    previewImage: { width: '100%', height: '100%' },
-    removeBtn: { position: 'absolute', top: 4, right: 4, backgroundColor: '#fff', borderRadius: 20 },
-    uploadBtn: { width: 100, height: 100, borderRadius: 8, borderWidth: 2, borderColor: '#10b981', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0fdf4' },
-    uploadText: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: '#10b981', marginTop: 4, fontFamily: 'Outfit_600SemiBold' },
-    submitBtn: { backgroundColor: '#10b981', padding: 16, borderRadius: 30, alignItems: 'center', marginTop: 10, marginBottom: 40, shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 5 },
-    submitText: { color: '#fff', fontSize: 18, fontFamily: 'Outfit_400Regular', fontFamily: 'Outfit_700Bold' }
+    container: { flex: 1, backgroundColor: '#f0fdf4' },
+    header: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#fff',
+        borderBottomWidth: 1, borderBottomColor: '#e5e7eb',
+    },
+    headerBtn: { padding: 4 },
+    headerTitle: { fontSize: 17, fontFamily: 'Outfit_700Bold', color: '#1f2937' },
+    nextBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    nextBtnText: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: '#10b981' },
+    progressTrack: { height: 4, backgroundColor: '#d1fae5' },
+    progressFill: { height: '100%', backgroundColor: '#10b981', borderRadius: 2 },
+    stepLabels: { flexDirection: 'row', justifyContent: 'center', gap: 32, paddingVertical: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+    stepLabel: { fontSize: 13, fontFamily: 'Outfit_500Medium', color: '#9ca3af' },
+    stepLabelActive: { color: '#047857', fontFamily: 'Outfit_700Bold' },
+
+    // Picker Step styles
+    stepContainer: { flex: 1, backgroundColor: '#fff' },
+    thumbsRow: { backgroundColor: '#f9fafb', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+    selectedThumb: { width: 66, height: 66, marginRight: 8, borderRadius: 10, overflow: 'hidden', position: 'relative', borderWidth: 2, borderColor: 'transparent' },
+    selectedThumbActive: { borderColor: '#fff' },
+    selectedThumbCover: { borderColor: '#10b981' },
+    thumbImg: { width: '100%', height: '100%' },
+    thumbRemove: { position: 'absolute', top: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20 },
+    coverBadge: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(16,185,129,0.88)', paddingVertical: 3, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+    coverText: { color: '#fff', fontSize: 9, fontFamily: 'Outfit_700Bold' },
+    addMoreThumb: { width: 66, height: 66, borderRadius: 10, borderWidth: 2, borderColor: '#10b981', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a2e1a' },
+    // Swiper
+    swiperWrap: { height: SWIPER_H, backgroundColor: '#fff', position: 'relative' },
+    swiperSlide: { width: SCREEN_W, height: SWIPER_H, justifyContent: 'center', alignItems: 'center' },
+    swiperImage: { width: SCREEN_W, height: SWIPER_H },
+    pageDots: { position: 'absolute', bottom: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+    dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' },
+    dotActive: { backgroundColor: '#fff', width: 18 },
+    setCoverPill: { position: 'absolute', top: 12, left: '50%', transform: [{ translateX: -65 }], backgroundColor: 'rgba(0,0,0,0.72)', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 24, borderWidth: 1, borderColor: '#fbbf24' },
+    setCoverText: { color: '#fbbf24', fontSize: 14, fontFamily: 'Outfit_700Bold' },
+    previewCountBadge: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+    previewCountText: { color: '#fff', fontSize: 13, fontFamily: 'Outfit_600SemiBold' },
+    emptyPickerArea: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: '#fff' },
+    emptyPickerTitle: { fontSize: 22, fontFamily: 'Outfit_700Bold', color: '#1f2937' },
+    emptyPickerSub: { fontSize: 14, fontFamily: 'Outfit_400Regular', color: '#9ca3af' },
+    pickerActions: { flexDirection: 'row', gap: 16, padding: 16 },
+    pickerBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#374151', paddingVertical: 14, borderRadius: 14 },
+    pickerBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Outfit_600SemiBold' },
+
+    // Step 1 - Details
+    detailsScroll: { padding: 20, paddingBottom: 60 },
+    imageStrip: { marginBottom: 20 },
+    stripImg: { width: 80, height: 80, borderRadius: 10, marginRight: 8, opacity: 0.6 },
+    stripImgActive: { opacity: 1, borderWidth: 2.5, borderColor: '#10b981' },
+    fieldGroup: { marginBottom: 20 },
+    fieldLabel: { fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: '#374151', marginBottom: 8 },
+    fieldInput: { backgroundColor: '#f9fafb', borderWidth: 1.5, borderColor: '#d1d5db', borderRadius: 12, padding: 14, fontSize: 16, fontFamily: 'Outfit_400Regular', color: '#1f2937' },
+    textArea: { height: 180, textAlignVertical: 'top' },
+    chipRow: { flexDirection: 'row', gap: 12 },
+    chip: { paddingHorizontal: 24, paddingVertical: 10, borderRadius: 30, borderWidth: 1.5, borderColor: '#d1d5db', backgroundColor: '#f9fafb' },
+    chipActive: { backgroundColor: '#047857', borderColor: '#047857' },
+    chipText: { fontSize: 15, fontFamily: 'Outfit_600SemiBold', color: '#6b7280' },
+    chipTextActive: { color: '#fff' },
+    publishBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+        backgroundColor: '#10b981', paddingVertical: 16, borderRadius: 30, marginTop: 10,
+        shadowColor: '#10b981', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 6,
+    },
+    publishBtnText: { color: '#fff', fontSize: 18, fontFamily: 'Outfit_700Bold' },
 });
-
-
-
-
-
-
-

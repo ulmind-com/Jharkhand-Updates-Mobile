@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Vibration, View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { Vibration, View, Text, StyleSheet, TouchableOpacity, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { View as MotiView } from 'moti';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
@@ -21,6 +21,7 @@ export default function TopHeader() {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [hasUnread, setHasUnread] = useState(false);
+    const [profileImageUrl, setProfileImageUrl] = useState(null);
 
     useEffect(() => {
         const checkAuthAndNotifications = async () => {
@@ -29,23 +30,32 @@ export default function TopHeader() {
 
             if (token) {
                 try {
-                    const res = await axios.get(`${BASE_URL}/notifications/recent?limit=1`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    if (res.data?.data?.length > 0) {
-                        const latestId = res.data.data[0].id;
+                    // Fetch notifications + profile image in parallel
+                    const [notifRes, profileRes] = await Promise.allSettled([
+                        axios.get(`${BASE_URL}/notifications/recent?limit=1`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        }),
+                        axios.get(`${BASE_URL}/user/profile`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        })
+                    ]);
+
+                    // Handle notifications
+                    if (notifRes.status === 'fulfilled' && notifRes.value.data?.data?.length > 0) {
+                        const latestId = notifRes.value.data.data[0].id;
                         const storedIdStr = Platform.OS === 'web' ? localStorage.getItem('lastNotificationId') : await SecureStore.getItemAsync('lastNotificationId');
                         const storedId = storedIdStr ? parseInt(storedIdStr, 10) : 0;
-                        if (latestId > storedId) {
-                            setHasUnread(true);
-                        } else {
-                            setHasUnread(false);
-                        }
+                        setHasUnread(latestId > storedId);
                     } else {
                         setHasUnread(false);
                     }
+
+                    // Handle profile image
+                    if (profileRes.status === 'fulfilled' && profileRes.value.data?.data?.profileImageUrl) {
+                        setProfileImageUrl(profileRes.value.data.data.profileImageUrl);
+                    }
                 } catch (e) {
-                    console.log("Error checking notifications in TopHeader:", e);
+                    console.log('Error in TopHeader fetch:', e);
                 }
             }
         };
@@ -102,7 +112,14 @@ export default function TopHeader() {
                         if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         navigation.navigate('UserProfile');
                     }}>
-                        <Ionicons name="person-outline" size={20} color={colors.text} />
+                        {profileImageUrl ? (
+                            <Image
+                                source={{ uri: profileImageUrl }}
+                                style={styles.avatarImg}
+                            />
+                        ) : (
+                            <Ionicons name="person-outline" size={20} color={colors.text} />
+                        )}
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity style={[styles.loginBtn, { backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }]} onPress={() => {
@@ -190,7 +207,12 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
         backgroundColor: '#ef4444',
         borderWidth: 1,
         borderColor: '#fff',
-    }
+    },
+    avatarImg: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+    },
 });
 
 

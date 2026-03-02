@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Vibration, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { View as MotiView } from 'moti';
 import { JobSkeleton } from '../components/Skeletons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { ThemeContext } from '../context/ThemeContext';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -23,12 +23,23 @@ export default function JobsScreen() {
     const [hasMore, setHasMore] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [imageDimensions, setImageDimensions] = useState({});
+    const flatListRef = useRef(null);
+    const scrollOffset = useRef(0);
 
-    useFocusEffect(
-        useCallback(() => {
-            fetchJobs(0, false);
-        }, [])
-    );
+    // Fetch once on mount
+    useEffect(() => { fetchJobs(0, false); }, []);
+
+    // Restore scroll position when navigating back from details
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            if (scrollOffset.current > 0 && flatListRef.current) {
+                setTimeout(() => {
+                    flatListRef.current?.scrollToOffset({ offset: scrollOffset.current, animated: false });
+                }, 50);
+            }
+        });
+        return unsubscribe;
+    }, [navigation]);
 
     const fetchJobs = async (pageNum, append = false) => {
         if (append) setLoadingMore(true);
@@ -180,12 +191,15 @@ export default function JobsScreen() {
                 </View>
             ) : (
                 <FlatList
+                    ref={flatListRef}
                     data={jobs}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderJob}
                     contentContainerStyle={styles.listContent}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.5}
+                    onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
+                    scrollEventThrottle={16}
                     ListFooterComponent={() =>
                         loadingMore ? <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} /> : null
                     }

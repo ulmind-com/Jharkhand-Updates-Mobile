@@ -9,23 +9,42 @@ import Toast from 'react-native-toast-message';
 export default function CreatePostModal({ visible, onClose }) {
     const navigation = useNavigation();
     const [userRole, setUserRole] = useState('USER');
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
 
     useEffect(() => {
         if (visible) {
-            checkUserRole();
+            checkAuth();
         }
     }, [visible]);
 
-    const checkUserRole = async () => {
+    const checkAuth = async () => {
         try {
-            const role = Platform.OS === 'web' ? localStorage.getItem('role') : await SecureStore.getItemAsync('role');
+            const token = Platform.OS === 'web'
+                ? localStorage.getItem('accessToken')
+                : await SecureStore.getItemAsync('accessToken');
+            const role = Platform.OS === 'web'
+                ? localStorage.getItem('role')
+                : await SecureStore.getItemAsync('role');
+            setIsLoggedIn(!!token);
             if (role) setUserRole(role.toUpperCase());
         } catch (e) {
-            console.log("Error fetching role: ", e);
+            setIsLoggedIn(false);
         }
     };
 
     const handleAction = (screenName) => {
+        // Auth guard — redirect to login if not logged in
+        if (!isLoggedIn) {
+            onClose();
+            Toast.show({
+                type: 'info',
+                text1: '🔒 Login Required',
+                text2: 'Please sign in to create a post.',
+            });
+            setTimeout(() => navigation.navigate('Login'), 350);
+            return;
+        }
+
         onClose();
         if (screenName === 'Community Post') {
             navigation.navigate('CreateCommunityPost');
@@ -82,36 +101,59 @@ export default function CreatePostModal({ visible, onClose }) {
                                     <Text style={styles.subtitleText}>Share local information with neighbours</Text>
                                 </View>
 
+                                {/* Login CTA Banner */}
+                                {!isLoggedIn && (
+                                    <TouchableOpacity
+                                        style={styles.loginBanner}
+                                        onPress={() => { onClose(); setTimeout(() => navigation.navigate('Login'), 350); }}
+                                        activeOpacity={0.85}
+                                    >
+                                        <Ionicons name="lock-closed" size={18} color="#059669" />
+                                        <Text style={styles.loginBannerText}>Sign in to start posting</Text>
+                                        <Ionicons name="arrow-forward" size={16} color="#059669" />
+                                    </TouchableOpacity>
+                                )}
+
                                 {/* Options */}
                                 <View style={styles.optionsList}>
                                     <TouchableOpacity style={styles.optionCard} onPress={() => handleAction('Job')}>
                                         <Ionicons name="briefcase-outline" size={24} color="#111827" style={styles.optionIcon} />
                                         <Text style={styles.optionText}>Jobs</Text>
-                                        <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                        {isLoggedIn
+                                            ? <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                            : <Ionicons name="lock-closed-outline" size={18} color="#10b981" />}
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.optionCard} onPress={() => handleAction('Event')}>
                                         <Ionicons name="calendar-outline" size={24} color="#111827" style={styles.optionIcon} />
                                         <Text style={styles.optionText}>Events</Text>
-                                        <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                        {isLoggedIn
+                                            ? <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                            : <Ionicons name="lock-closed-outline" size={18} color="#10b981" />}
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.optionCard} onPress={() => handleAction('Community Post')}>
                                         <Ionicons name="chatbubble-outline" size={24} color="#111827" style={styles.optionIcon} />
                                         <Text style={styles.optionText}>Community</Text>
-                                        <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                        {isLoggedIn
+                                            ? <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                            : <Ionicons name="lock-closed-outline" size={18} color="#10b981" />}
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.optionCard} onPress={() => handleAction('Property')}>
                                         <Ionicons name="home-outline" size={24} color="#111827" style={styles.optionIcon} />
                                         <Text style={styles.optionText}>Properties</Text>
-                                        <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                        {isLoggedIn
+                                            ? <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                            : <Ionicons name="lock-closed-outline" size={18} color="#10b981" />}
                                     </TouchableOpacity>
 
                                     <TouchableOpacity style={styles.optionCard} onPress={() => handleAction('Promotion')}>
                                         <Ionicons name="megaphone-outline" size={24} color="#111827" style={styles.optionIcon} />
                                         <Text style={styles.optionText}>Promotion</Text>
-                                        <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                        {isLoggedIn
+                                            ? <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
+                                            : <Ionicons name="lock-closed-outline" size={18} color="#10b981" />}
                                     </TouchableOpacity>
 
                                     {/* Admin Only Options */}
@@ -202,6 +244,24 @@ const styles = StyleSheet.create({
     },
     noticeboardCard: {
         backgroundColor: '#a16207', // Brownish color matching the screenshot
+    },
+    loginBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: '#ecfdf5',
+        borderWidth: 1.5,
+        borderColor: '#a7f3d0',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        marginBottom: 16,
+    },
+    loginBannerText: {
+        flex: 1,
+        fontSize: 14,
+        fontFamily: 'Outfit_600SemiBold',
+        color: '#047857',
     },
     adminCard: {
         backgroundColor: 'rgb(250, 208, 0)',

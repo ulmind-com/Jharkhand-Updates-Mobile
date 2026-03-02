@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Vibration } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { View as MotiView } from 'moti';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
@@ -49,12 +49,23 @@ export default function CommunityScreen() {
     const [commentText, setCommentText] = useState({});
     const { isDarkMode, colors } = React.useContext(ThemeContext);
     const styles = getStyles(colors, isDarkMode);
+    const flatListRef = useRef(null);
+    const scrollOffset = useRef(0);
 
-    useFocusEffect(
-        useCallback(() => {
-            fetchPosts(0, false);
-        }, [])
-    );
+    // Fetch once on mount
+    useEffect(() => { fetchPosts(0, false); }, []);
+
+    // Restore scroll position when navigating back from details
+    useEffect(() => {
+        const unsubscribe = navigation.addListener('focus', () => {
+            if (scrollOffset.current > 0 && flatListRef.current) {
+                setTimeout(() => {
+                    flatListRef.current?.scrollToOffset({ offset: scrollOffset.current, animated: false });
+                }, 50);
+            }
+        });
+        return unsubscribe;
+    }, [navigation]);
 
     const fetchPosts = async (pageNum, append = false) => {
         if (append) setLoadingMore(true);
@@ -127,7 +138,10 @@ export default function CommunityScreen() {
     const renderPost = ({ item }) => {
         const hasImage = item.imageUrls && item.imageUrls.length > 0;
         const authorName = `${item.author.firstName} ${item.author.lastName}`;
-        const dateStr = new Date(item.createdAt).toLocaleDateString();
+        const _cd = new Date(item.createdAt);
+        const _ord = (n) => { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+        const _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const dateStr = `${_ord(_cd.getDate())} ${_months[_cd.getMonth()]} ${_cd.getFullYear()}`;
 
         return (
             <MotiView
@@ -256,12 +270,15 @@ export default function CommunityScreen() {
                 </View>
             ) : (
                 <FlatList
+                    ref={flatListRef}
                     data={posts}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderPost}
                     contentContainerStyle={styles.listContent}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.5}
+                    onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
+                    scrollEventThrottle={16}
                     ListFooterComponent={() =>
                         loadingMore ? <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} /> : null
                     }

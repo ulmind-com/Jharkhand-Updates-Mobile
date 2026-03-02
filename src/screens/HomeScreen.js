@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions, Platform, ActivityIndicator, Modal } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
@@ -48,9 +48,17 @@ export default function HomeScreen() {
     const adToShow = ads.length > 0 ? ads[0] : null;
 
     return (
-        <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-            {/* Top Premium Emerald Background Sweep */}
-            <View style={styles.topBackground} />
+        <SafeAreaView style={styles.container} edges={['top']}>
+            {/* Top Premium Emerald Background Sweep with Illustration */}
+            <View style={styles.topBackground}>
+                <Image
+                    source={require('../../assets/illustration2.png')}
+                    style={styles.bgIllustration}
+                    resizeMode="cover"
+                />
+                {/* Gradient/Overlay to ensure text readability */}
+                <View style={styles.bgOverlay} />
+            </View>
 
             <View style={styles.content}>
                 {/* Brand Identity / Welcome Area */}
@@ -62,12 +70,12 @@ export default function HomeScreen() {
                 >
                     <View style={styles.logoIconWrapper}>
                         <Image
-                            source={require('../../assets/logo.png')}
+                            source={require('../../assets/julogo.png')}
                             style={{ width: 48, height: 48, borderRadius: 24 }}
                             resizeMode="contain"
                         />
                     </View>
-                    <Text style={styles.brandTitle}>Jharkhand Bihar Updates</Text>
+                    <Text style={styles.brandTitle}>Jharkhand Updates</Text>
                     <Text style={styles.brandSubtitle}>Your trusted local network</Text>
                 </MotiView>
 
@@ -137,9 +145,9 @@ export default function HomeScreen() {
                 <View style={styles.modalOverlay}>
                     <TouchableOpacity style={styles.modalDismissArea} onPress={() => setSelectorVisible(false)} activeOpacity={1} />
                     <MotiView
-                        from={{ opacity: 0, translateY: 100 }}
+                        from={{ opacity: 0, translateY: 80 }}
                         animate={{ opacity: 1, translateY: 0 }}
-                        transition={{ type: 'spring', damping: 20, stiffness: 100 }}
+                        transition={{ type: 'timing', duration: 280 }}
                         style={styles.modalContent}
                     >
                         <View style={styles.modalHeader}>
@@ -173,6 +181,15 @@ export default function HomeScreen() {
                     </MotiView>
                 </View>
             </Modal>
+
+            {/* Bottom Premium Emerald Illustration */}
+            <View style={styles.bottomIllustrationContainer} pointerEvents="none">
+                <Image
+                    source={require('../../assets/illustration3.png')}
+                    style={styles.bottomIllustration}
+                    resizeMode="cover"
+                />
+            </View>
         </SafeAreaView>
     );
 }
@@ -191,6 +208,32 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
         backgroundColor: colors.primary,
         borderBottomLeftRadius: 60,
         borderBottomRightRadius: 60,
+        overflow: 'hidden',
+    },
+    bgIllustration: {
+        width: '100%',
+        height: '120%', // Make it taller to fit the character better
+        position: 'absolute',
+        top: 0,
+        opacity: 0.35, // Adjust opacity for better blend
+    },
+    bgOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: colors.primary,
+        opacity: 0.65, // Adjust this to balance illustration visibility vs text readability
+    },
+    bottomIllustrationContainer: {
+        position: 'absolute',
+        bottom: 0, // This will now go all the way to the screen edge since we removed bottom SafeAreaView padding
+        left: 0,
+        right: 0,
+        height: height * 0.35, // Give it more space upwards to meet the card
+        zIndex: -1, // Ensure it stays behind the card
+    },
+    bottomIllustration: {
+        width: '100%',
+        height: '100%',
+        opacity: 0.2, // "opacity change karo low karo pura"
     },
     content: {
         flex: 1,
@@ -389,6 +432,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
         fontFamily: 'Outfit_700Bold',
     }
 });
+
 
 
 

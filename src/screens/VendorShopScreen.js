@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { Vibration, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Dimensions, Platform } from 'react-native';
 import axios from 'axios';
@@ -99,7 +99,7 @@ export default function VendorShopScreen() {
         if (!vendor) return;
         try {
             await Share.share({
-                message: `Check out ${vendor.shopName} on Jharkhand Bihar Updates!`,
+                message: `Check out ${vendor.shopName} on Jharkhand Updates!`,
                 url: `https://jharkhandbiharupdates.com/shop/${slug}`,
                 title: vendor.shopName
             });
@@ -462,6 +462,7 @@ const styles = StyleSheet.create({
     viewCartText: { color: '#fff', fontFamily: 'Outfit_700Bold', fontSize: 14 },
     cartTotalText: { color: '#d1fae5', fontSize: 12, fontFamily: 'Outfit_600SemiBold', marginTop: 2 }
 });
+
 
 
 

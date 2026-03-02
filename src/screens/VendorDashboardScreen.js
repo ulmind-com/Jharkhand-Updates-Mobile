@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
     View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator,
     Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Dimensions, Share, Switch, RefreshControl
@@ -233,7 +233,7 @@ export default function VendorDashboardScreen() {
         if (!vendor) return;
         try {
             await Share.share({
-                message: `Check out ${vendor.shopName} on Jharkhand Bihar Updates! https://jharkhandbiharupdates.com/shop/${vendor.vendorSlug}`,
+                message: `Check out ${vendor.shopName} on Jharkhand Updates! https://jharkhandbiharupdates.com/shop/${vendor.vendorSlug}`,
                 title: vendor.shopName,
             });
         } catch (e) { console.error(e); }
@@ -702,3 +702,4 @@ const m = StyleSheet.create({
     saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#006A4E', borderRadius: 14, paddingVertical: 16, marginTop: 8 },
     saveBtnTxt: { color: '#fff', fontFamily: 'Outfit_700Bold', fontSize: 16 },
 });
+

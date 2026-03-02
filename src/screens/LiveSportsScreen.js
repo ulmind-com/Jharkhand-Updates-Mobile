@@ -10,6 +10,7 @@ import { Video, ResizeMode } from 'expo-av';
 import Svg, { Path } from 'react-native-svg';
 import { ThemeContext } from '../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import TopHeader from '../components/TopHeader';
 import { cricketFetch, BASE_URL, filterAndSortMatches } from '../services/CricketApi';
 import {
@@ -58,6 +59,26 @@ function getCached(key) {
 }
 function setCache(key, data) { _cache[key] = { data, ts: Date.now() }; }
 function getStaleCached(key) { return _cache[key] ? _cache[key].data : null; }
+
+// ─── Persistent storage cache (35-hour TTL) for Finished Matches ────
+const CACHE_TTL_LONG = 35 * 60 * 60 * 1000; // 35 hours
+async function getPersistentCache(key) {
+    try {
+        const str = await AsyncStorage.getItem(key);
+        if (!str) return null;
+        const entry = JSON.parse(str);
+        if (Date.now() - entry.ts > CACHE_TTL_LONG) {
+            await AsyncStorage.removeItem(key);
+            return null;
+        }
+        return entry.data;
+    } catch { return null; }
+}
+async function setPersistentCache(key, data) {
+    try {
+        await AsyncStorage.setItem(key, JSON.stringify({ data, ts: Date.now() }));
+    } catch { }
+}
 
 // ─── Country flags ────────────────────────────────
 const COUNTRY_FLAGS = {
@@ -252,10 +273,19 @@ const bell = StyleSheet.create({
 // score = [{r, w, o, inning}, ...]
 const getScoreDisplay = (scores = [], teamName = '') => {
     // find inning(s) belonging to this team
-    const key = teamName.toLowerCase();
+    const key = teamName.split('&')[0].trim().split(' ')[0].toLowerCase(); // Use first word to be safe against dirty strings
     const teamInns = scores.filter(s => (s.inning || '').toLowerCase().includes(key));
     if (teamInns.length === 0) return null;
-    return teamInns.map(s => `${s.r}/${s.w} (${s.o} ov)`).join('  |  ');
+
+    // Test matches can have multiple innings. Only show the latest active inning on the small card to avoid text overlap.
+    const latest = teamInns[teamInns.length - 1];
+    return `${latest.r}/${latest.w} (${latest.o} ov)`;
+};
+
+const cleanTeamName = (name = '') => {
+    // Sometimes API returns name with score if it's messy e.g "Jammu & Kashmir 186/4 & 584/10"
+    // We try to strip trailing scores 
+    return name.replace(/\d+\/\d+.*$/, '').replace(/&$/, '').trim();
 };
 
 // ─── Match Card ───────────────────────────────────
@@ -263,8 +293,12 @@ const MatchCard = ({ match, onPress, isDarkMode }) => {
     const matchId = match.id;
     const [tracking, setTracking] = useState(() => isTracking(matchId));
 
-    const team1Name = (match.teams && match.teams[0]) ? match.teams[0] : 'Team A';
-    const team2Name = (match.teams && match.teams[1]) ? match.teams[1] : 'Team B';
+    const rawTeam1 = (match.teams && match.teams[0]) ? match.teams[0] : 'Team A';
+    const rawTeam2 = (match.teams && match.teams[1]) ? match.teams[1] : 'Team B';
+
+    const team1Name = cleanTeamName(rawTeam1);
+    const team2Name = cleanTeamName(rawTeam2);
+
     const team1Info = match.teamInfo ? match.teamInfo.find(t => t.name.toLowerCase().includes(team1Name.toLowerCase().slice(0, 4))) : null;
     const team2Info = match.teamInfo ? match.teamInfo.find(t => t.name.toLowerCase().includes(team2Name.toLowerCase().slice(0, 4))) : null;
 
@@ -273,8 +307,8 @@ const MatchCard = ({ match, onPress, isDarkMode }) => {
     const statusColor = getStatusColor(match.status, match.matchStarted, match.matchEnded);
     const typeColors = matchTypeColor(match.matchType);
 
-    const sc1 = getScoreDisplay(match.score || [], team1Name);
-    const sc2 = getScoreDisplay(match.score || [], team2Name);
+    const sc1 = getScoreDisplay(match.score || [], rawTeam1);
+    const sc2 = getScoreDisplay(match.score || [], rawTeam2);
 
     const handleBellPress = async () => {
         if (tracking) {
@@ -865,7 +899,7 @@ const fbc = StyleSheet.create({
 export default function LiveSportsScreen() {
     const { isDarkMode, colors } = React.useContext(ThemeContext);
     const navigation = useNavigation();
-    const [activeTab, setActiveTab] = useState('cricket');
+    const [activeTab, setActiveTab] = useState('football');
     const [matchFilter, setMatchFilter] = useState('live');
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -884,47 +918,73 @@ export default function LiveSportsScreen() {
         { key: 'recent', label: 'Recent', icon: 'checkmark-circle-outline', color: '#3b82f6' },
     ];
 
-    const fetchMatches = useCallback(async (filter = matchFilter, isRefresh = false) => {
+    const fetchMatches = useCallback(async (filter = matchFilter, isRefresh = false, isSilent = false) => {
         const cacheKey = `matches_${filter}`;
 
-        // Serve fresh cache immediately
         if (!isRefresh) {
             const fresh = getCached(cacheKey);
             if (fresh) { setMatches(fresh); return; }
         }
 
-        if (isRefresh) setRefreshing(true); else setLoading(true);
+        if (!isSilent) {
+            if (isRefresh) setRefreshing(true); else setLoading(true);
+        }
         try {
-            let path;
-            if (filter === 'live' || filter === 'recent') {
-                path = '/currentMatches?offset=0';
+            if (filter === 'upcoming') {
+                // Upcoming: use /matches which returns scheduled matches
+                const json = await cricketFetch('/matches?offset=0');
+                let all = (json.data || []).filter(m => !m.matchStarted);
+                all = filterAndSortMatches(all, false);
+                setCache(cacheKey, all);
+                setMatches(all);
+            } else if (filter === 'live') {
+                // Live: fetch TWO pages in parallel to avoid missing India/IPL matches
+                const [page0, page1] = await Promise.allSettled([
+                    cricketFetch('/currentMatches?offset=0'),
+                    cricketFetch('/currentMatches?offset=25'),
+                ]);
+                const data0 = page0.status === 'fulfilled' ? (page0.value.data || []) : [];
+                const data1 = page1.status === 'fulfilled' ? (page1.value.data || []) : [];
+                const seen = new Set();
+                const merged = [...data0, ...data1].filter(m => {
+                    const key = m.id || m.name;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+                const live = merged.filter(m => m.matchStarted && !m.matchEnded && !(m.status || '').toLowerCase().includes('abandoned'));
+                const sorted = filterAndSortMatches(live, true);
+                setCache(cacheKey, sorted);
+                setMatches(sorted);
             } else {
-                path = '/matches?offset=0';
+                // Recent: pull from currentMatches (recently ended) + /matches endpoint
+                const [currentRes, matchesRes] = await Promise.allSettled([
+                    cricketFetch('/currentMatches?offset=0'),
+                    cricketFetch('/matches?offset=0'),
+                ]);
+                const current = currentRes.status === 'fulfilled' ? (currentRes.value.data || []) : [];
+                const matchesList = matchesRes.status === 'fulfilled' ? (matchesRes.value.data || []) : [];
+                const seen = new Set();
+                const merged = [...current, ...matchesList].filter(m => {
+                    const key = m.id || m.name;
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+                const ended = merged.filter(m => m.matchEnded);
+                const all = filterAndSortMatches(ended.length > 0 ? ended : merged, false);
+                setCache(cacheKey, all);
+                setMatches(all);
             }
-
-            const json = await cricketFetch(path);
-            let all = json.data || [];
-
-            if (filter === 'live') {
-                const live = all.filter(m => m.matchStarted && !m.matchEnded);
-                all = live.length > 0 ? live : all;
-            } else if (filter === 'upcoming') {
-                all = all.filter(m => !m.matchStarted);
-            } else if (filter === 'recent') {
-                const ended = all.filter(m => m.matchEnded);
-                all = ended.length > 0 ? ended : all;
-            }
-
-            // Smart filter: keep only relevant matches, India first
-            all = filterAndSortMatches(all);
-
-            setCache(cacheKey, all);
-            setMatches(all);
         } catch (e) {
             console.warn('Sports API error:', e.message);
             const stale = getStaleCached(cacheKey);
             setMatches(stale || []);
-        } finally { setLoading(false); setRefreshing(false); }
+        } finally {
+            if (!isSilent) {
+                setLoading(false); setRefreshing(false);
+            }
+        }
     }, [matchFilter]);
 
     const fetchFootball = useCallback(async (filter = fbFilter, isRefresh = false) => {
@@ -948,10 +1008,29 @@ export default function LiveSportsScreen() {
         } finally { setFbLoading(false); setFbRefreshing(false); }
     }, [fbFilter]);
 
+    // Lazy load: Only fetch the active tab's active filter to save API hits
     useEffect(() => {
-        if (activeTab === 'cricket') fetchMatches(matchFilter);
-        else if (activeTab === 'football') fetchFootball(fbFilter);
-    }, [activeTab, matchFilter, fbFilter]);
+        if (activeTab === 'cricket') {
+            fetchMatches(matchFilter);
+        }
+    }, [activeTab, matchFilter]);
+
+    // 60-second silent background polling for REALTIME updates (Only on Live tab)
+    useEffect(() => {
+        let interval;
+        if (activeTab === 'cricket' && matchFilter === 'live') {
+            interval = setInterval(() => {
+                fetchMatches('live', true, true);
+            }, 60000);
+        }
+        return () => clearInterval(interval);
+    }, [activeTab, matchFilter, fetchMatches]);
+
+    useEffect(() => {
+        if (activeTab === 'football') {
+            fetchFootball(fbFilter);
+        }
+    }, [activeTab, fbFilter]);
 
     const bgColor = isDarkMode ? '#111827' : '#f8fafc';
 
@@ -984,9 +1063,9 @@ export default function LiveSportsScreen() {
                 <Image source={require('../../assets/sportsillustration.png')} style={s.heroIllustration} resizeMode="contain" />
             </View>
 
-            {/* Sport Tab */}
+            {/* Sport Tab: Defaults to Football first to save Cricket API hits as requested */}
             <View style={[s.sportTabRow, { backgroundColor: isDarkMode ? '#1E1E1E' : '#fff', borderBottomColor: isDarkMode ? '#2C2C2C' : '#f3f4f6' }]}>
-                {[{ key: 'cricket', label: 'Cricket' }, { key: 'football', label: 'Football' }].map(tab => (
+                {[{ key: 'football', label: 'Football' }, { key: 'cricket', label: 'Cricket' }].map(tab => (
                     <TouchableOpacity key={tab.key} style={[s.sportTab, activeTab === tab.key && s.sportTabActive]} onPress={() => setActiveTab(tab.key)}>
                         <SportVideo sport={tab.key} size={32} bgColor={activeTab === tab.key ? (isDarkMode ? '#1E1E1E' : '#121212') : (isDarkMode ? '#1E1E1E' : '#f3f4f6')} />
                         <Text style={[s.sportTabLabel, { color: activeTab === tab.key ? (isDarkMode ? '#f1f5f9' : '#111827') : (isDarkMode ? '#475569' : '#9ca3af') }, activeTab === tab.key && s.sportTabLabelActive]}>{tab.label}</Text>
@@ -1035,7 +1114,7 @@ export default function LiveSportsScreen() {
                                 <FootballMatchCard
                                     match={item}
                                     isDarkMode={isDarkMode}
-                                    onPress={() => setFbSelectedMatch(item)}
+                                    onPress={() => navigation.navigate('FootballDetails', { matchId: item.id, match: item })}
                                 />
                             )}
                             contentContainerStyle={{ padding: 14, paddingBottom: 80 }}
@@ -1050,14 +1129,7 @@ export default function LiveSportsScreen() {
                         />
                     )}
 
-                    {/* Football Detail Modal */}
-                    <FootballMatchModal
-                        visible={!!fbSelectedMatch}
-                        matchId={(fbSelectedMatch ? fbSelectedMatch.id : undefined)}
-                        match={fbSelectedMatch}
-                        onClose={() => setFbSelectedMatch(null)}
-                        isDarkMode={isDarkMode}
-                    />
+
                 </>
             ) : (
                 <>

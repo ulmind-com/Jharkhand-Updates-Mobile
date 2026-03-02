@@ -263,9 +263,6 @@ export default function UserProfileScreen() {
                     <View style={styles.profileInfo}>
                         <Text style={styles.name}>{profile.fullName}</Text>
                         <Text style={styles.email}>{profile.email}</Text>
-                        <View style={styles.roleBadge}>
-                            <Text style={styles.roleText}>{profile.role}</Text>
-                        </View>
                     </View>
                 </MotiView>
 

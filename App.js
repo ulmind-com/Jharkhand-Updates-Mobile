@@ -35,11 +35,15 @@ import NotificationsScreen from './src/screens/NotificationsScreen';
 import EmailServiceScreen from './src/screens/EmailServiceScreen';
 import LiveSportsScreen from './src/screens/LiveSportsScreen';
 import CricketScorecardScreen from './src/screens/CricketScorecardScreen';
+import FootballDetailsScreen from './src/screens/FootballDetailsScreen';
 import SplashScreenAnimation from './src/screens/SplashScreenAnimation';
 import AdminDashboardScreen from './src/screens/AdminDashboardScreen';
 import PendingApprovalsScreen from './src/screens/PendingApprovalsScreen';
 import PendingCategoryListScreen from './src/screens/PendingCategoryListScreen';
 import ComingSoonAdminScreen from './src/screens/ComingSoonAdminScreen';
+import AdminPropertiesScreen from './src/screens/AdminPropertiesScreen';
+import AdminPropertyDetailsScreen from './src/screens/AdminPropertyDetailsScreen';
+import AdminPropertyLeadsScreen from './src/screens/AdminPropertyLeadsScreen';
 import VendorDashboardScreen from './src/screens/VendorDashboardScreen';
 import { LocationProvider } from './src/context/LocationContext';
 import { ThemeProvider } from './src/context/ThemeContext';
@@ -145,10 +149,14 @@ export default function App() {
               <Stack.Screen name="EmailService" component={EmailServiceScreen} />
               <Stack.Screen name="LiveSports" component={LiveSportsScreen} />
               <Stack.Screen name="CricketScorecard" component={CricketScorecardScreen} />
+              <Stack.Screen name="FootballDetails" component={FootballDetailsScreen} />
               <Stack.Screen name="AdminDashboard" component={AdminDashboardScreen} />
               <Stack.Screen name="PendingApprovals" component={PendingApprovalsScreen} />
               <Stack.Screen name="PendingCategoryList" component={PendingCategoryListScreen} />
               <Stack.Screen name="ComingSoonAdmin" component={ComingSoonAdminScreen} />
+              <Stack.Screen name="AdminProperties" component={AdminPropertiesScreen} />
+              <Stack.Screen name="AdminPropertyDetails" component={AdminPropertyDetailsScreen} />
+              <Stack.Screen name="AdminPropertyLeads" component={AdminPropertyLeadsScreen} />
               <Stack.Screen name="VendorDashboard" component={VendorDashboardScreen} />
               <Stack.Screen name="CreateCommunityPost" component={CreateCommunityPostScreen} />
               <Stack.Screen name="CreateJobPost" component={CreateJobPostScreen} />

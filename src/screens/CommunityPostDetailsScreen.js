@@ -377,7 +377,10 @@ export default function CommunityPostDetailsScreen() {
     if (!post) return null;
 
     const authorName = `${post.author.firstName} ${post.author.lastName}`;
-    const dateStr = new Date(post.createdAt).toLocaleDateString();
+    const _pd = new Date(post.createdAt);
+    const _ordp = (n) => { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+    const _monthsp = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const dateStr = `${_ordp(_pd.getDate())} ${_monthsp[_pd.getMonth()]} ${_pd.getFullYear()}`;
 
     const handleShare = async () => {
         try {
@@ -461,7 +464,7 @@ export default function CommunityPostDetailsScreen() {
 
                     {/* Comments Section */}
                     <View style={styles.commentsSection}>
-                        <Text style={styles.commentsHeader}>Comments ({comments?.length || 0})</Text>
+                        <Text style={styles.commentsHeader}>Comments</Text>
 
                         {rootComments.length > 0 ? (
                             rootComments.map(comment => (

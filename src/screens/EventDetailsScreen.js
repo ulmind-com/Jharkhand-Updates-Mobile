@@ -237,7 +237,7 @@ export default function EventDetailsScreen() {
         }
     };
 
-    
+
     const handleAdminAction = async (action) => {
         try {
             setProcessingAdmin(true);
@@ -264,7 +264,7 @@ export default function EventDetailsScreen() {
                 fetchedComments.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
                 fetchedComments.forEach(cmt => {
                     if (cmt.replies) {
-                       cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
+                        cmt.replies.sort((a, b) => new Date(b.createdAt || b.date) - new Date(a.createdAt || a.date));
                     }
                 });
                 setComments(fetchedComments);
@@ -415,7 +415,7 @@ export default function EventDetailsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
             >
                 <View style={styles.header}>
@@ -428,7 +428,7 @@ export default function EventDetailsScreen() {
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView contentContainerStyle={styles.scrollContent}>
+                <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                     <MotiView style={styles.eventSection} from={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
                         {isPastEvent && (
                             <View style={styles.pastBanner}>
@@ -489,7 +489,7 @@ export default function EventDetailsScreen() {
 
                     {/* Comments Section */}
                     <View style={styles.commentsSection}>
-                        <Text style={styles.commentsHeader}>Comments ({comments?.length || 0})</Text>
+                        <Text style={styles.commentsHeader}>Comments</Text>
 
                         {rootComments && rootComments.length > 0 ? (
                             rootComments.map(comment => (
