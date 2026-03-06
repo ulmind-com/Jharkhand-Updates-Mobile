@@ -42,6 +42,8 @@ import PendingApprovalsScreen from './src/screens/PendingApprovalsScreen';
 import PendingCategoryListScreen from './src/screens/PendingCategoryListScreen';
 import ComingSoonAdminScreen from './src/screens/ComingSoonAdminScreen';
 import AdminPropertiesScreen from './src/screens/AdminPropertiesScreen';
+import AiChatScreen from './src/screens/AiChatScreen';
+import NewsArticleScreen from './src/screens/NewsArticleScreen';
 import AdminPropertyDetailsScreen from './src/screens/AdminPropertyDetailsScreen';
 import AdminPropertyLeadsScreen from './src/screens/AdminPropertyLeadsScreen';
 import VendorDashboardScreen from './src/screens/VendorDashboardScreen';
@@ -164,6 +166,8 @@ export default function App() {
               <Stack.Screen name="CreatePropertyListing" component={CreatePropertyListingScreen} />
               <Stack.Screen name="CreateStateNews" component={CreateStateNewsScreen} />
               <Stack.Screen name="CreatePromotion" component={CreatePromotionScreen} />
+              <Stack.Screen name="AiChat" component={AiChatScreen} />
+              <Stack.Screen name="NewsArticle" component={NewsArticleScreen} />
             </Stack.Navigator>
           </NavigationContainer>
         </LocationProvider>

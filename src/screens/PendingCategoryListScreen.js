@@ -59,7 +59,7 @@ export default function PendingCategoryListScreen() {
             await axios.post(`${BASE_URL}/${categoryId === 'admin/vendors' ? 'vendors' : categoryId}/${item.id || item._id}/${action}`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            Toast.show({ type: 'success', text1: 'Success', text2: `Item ${action}d successfully` });
+            // Removed success popup as requested by the admin
             if (Platform.OS !== 'web') {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             }

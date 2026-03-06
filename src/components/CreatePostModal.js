@@ -134,7 +134,7 @@ export default function CreatePostModal({ visible, onClose }) {
 
                                     <TouchableOpacity style={styles.optionCard} onPress={() => handleAction('Community Post')}>
                                         <Ionicons name="chatbubble-outline" size={24} color="#111827" style={styles.optionIcon} />
-                                        <Text style={styles.optionText}>Community</Text>
+                                        <Text style={styles.optionText}>Citizen News</Text>
                                         {isLoggedIn
                                             ? <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
                                             : <Ionicons name="lock-closed-outline" size={18} color="#10b981" />}
@@ -150,7 +150,7 @@ export default function CreatePostModal({ visible, onClose }) {
 
                                     <TouchableOpacity style={styles.optionCard} onPress={() => handleAction('Promotion')}>
                                         <Ionicons name="megaphone-outline" size={24} color="#111827" style={styles.optionIcon} />
-                                        <Text style={styles.optionText}>Promotion</Text>
+                                        <Text style={styles.optionText}>Local Market</Text>
                                         {isLoggedIn
                                             ? <Ionicons name="chevron-forward" size={20} color="#d1d5db" />
                                             : <Ionicons name="lock-closed-outline" size={18} color="#10b981" />}

@@ -518,7 +518,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     overviewValue: { fontSize: 15, fontFamily: 'Outfit_700Bold', color: colors.text, marginTop: 4 },
 
     descriptionCard: { padding: 0 },
-    descriptionText: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.textDim, lineHeight: 24 },
+    descriptionText: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.textDim, lineHeight: 24, textAlign: 'justify' },
 
     detailsGrid: { flexDirection: 'row', flexWrap: 'wrap', backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 16 },
     detailColumn: { width: '50%', marginBottom: 16 },

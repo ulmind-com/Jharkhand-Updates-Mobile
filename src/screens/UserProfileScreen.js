@@ -6,9 +6,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import Toast from 'react-native-toast-message';
 import { Switch } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { View as MotiView, AnimatePresence } from 'moti';
 import * as Haptics from 'expo-haptics';
+import { useCallback } from 'react';
 import { ProfileSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +24,7 @@ export default function UserProfileScreen() {
     const [profile, setProfile] = useState(null);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [totalPending, setTotalPending] = useState(0);
 
     const [isEditModalVisible, setEditModalVisible] = useState(false);
     const [formData, setFormData] = useState({ firstName: '', lastName: '' });
@@ -30,9 +32,41 @@ export default function UserProfileScreen() {
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [successPopup, setSuccessPopup] = useState({ visible: false, title: '', message: '' });
 
-    useEffect(() => {
-        fetchUserData();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            fetchUserData();
+        }, [])
+    );
+
+    useFocusEffect(
+        useCallback(() => {
+            if (profile?.role === 'ADMIN') {
+                const fetchPending = async () => {
+                    try {
+                        const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+                        if (!token) return;
+
+                        const fetchCount = async (categoryStr) => {
+                            try {
+                                const endpoint = categoryStr === 'promotions' ? 'admin/vendors/pending' : `${categoryStr}/pending`;
+                                const res = await axios.get(`${BASE_URL}/${endpoint}`, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                });
+                                return (categoryStr === 'promotions' ? res.data.vendors || res.data.data || [] : res.data.data || []).length;
+                            } catch (e) {
+                                return 0;
+                            }
+                        };
+
+                        const counts = await Promise.all(['jobs', 'events', 'properties', 'community', 'promotions'].map(fetchCount));
+                        const total = counts.reduce((a, b) => a + b, 0);
+                        setTotalPending(total);
+                    } catch (e) { }
+                };
+                fetchPending();
+            }
+        }, [profile?.role])
+    );
 
     const fetchUserData = async () => {
         try {
@@ -277,28 +311,58 @@ export default function UserProfileScreen() {
                         transition={{ type: 'timing', duration: 400, delay: 100 }}
                     >
                         <View style={styles.statBox}>
-                            <Text style={styles.statValue}>{stats.totalCommunityPosts || 0}</Text>
-                            <Text style={styles.statLabel}>Posts</Text>
+                            <View style={[styles.statIconBox, { backgroundColor: isDarkMode ? '#064e3b' : '#dcfce7' }]}>
+                                <Ionicons name="document-text" size={18} color={isDarkMode ? '#34d399' : '#059669'} />
+                            </View>
+                            <View style={styles.statInfo}>
+                                <Text style={styles.statValue}>{stats.totalCommunityPosts || 0}</Text>
+                                <Text style={styles.statLabel}>Citizen News</Text>
+                            </View>
                         </View>
                         <View style={styles.statBox}>
-                            <Text style={styles.statValue}>{stats.totalEvents || 0}</Text>
-                            <Text style={styles.statLabel}>Events</Text>
+                            <View style={[styles.statIconBox, { backgroundColor: isDarkMode ? '#4c1d95' : '#ede9fe' }]}>
+                                <Ionicons name="calendar" size={18} color={isDarkMode ? '#a78bfa' : '#7c3aed'} />
+                            </View>
+                            <View style={styles.statInfo}>
+                                <Text style={styles.statValue}>{stats.totalEvents || 0}</Text>
+                                <Text style={styles.statLabel}>Events</Text>
+                            </View>
                         </View>
                         <View style={styles.statBox}>
-                            <Text style={styles.statValue}>{stats.totalJobs || 0}</Text>
-                            <Text style={styles.statLabel}>Jobs</Text>
+                            <View style={[styles.statIconBox, { backgroundColor: isDarkMode ? '#1e3a8a' : '#dbeafe' }]}>
+                                <Ionicons name="briefcase" size={18} color={isDarkMode ? '#60a5fa' : '#2563eb'} />
+                            </View>
+                            <View style={styles.statInfo}>
+                                <Text style={styles.statValue}>{stats.totalJobs || 0}</Text>
+                                <Text style={styles.statLabel}>Jobs</Text>
+                            </View>
                         </View>
                         <View style={styles.statBox}>
-                            <Text style={styles.statValue}>{stats.totalProperties || 0}</Text>
-                            <Text style={styles.statLabel}>Properties</Text>
+                            <View style={[styles.statIconBox, { backgroundColor: isDarkMode ? '#78350f' : '#fef3c7' }]}>
+                                <Ionicons name="home" size={18} color={isDarkMode ? '#fbbf24' : '#d97706'} />
+                            </View>
+                            <View style={styles.statInfo}>
+                                <Text style={styles.statValue}>{stats.totalProperties || 0}</Text>
+                                <Text style={styles.statLabel}>Properties</Text>
+                            </View>
                         </View>
                         <View style={styles.statBox}>
-                            <Text style={styles.statValue}>{stats.totalStateNews || 0}</Text>
-                            <Text style={styles.statLabel}>News</Text>
+                            <View style={[styles.statIconBox, { backgroundColor: isDarkMode ? '#831843' : '#fce7f3' }]}>
+                                <Ionicons name="newspaper" size={18} color={isDarkMode ? '#f472b6' : '#db2777'} />
+                            </View>
+                            <View style={styles.statInfo}>
+                                <Text style={styles.statValue}>{stats.totalStateNews || 0}</Text>
+                                <Text style={styles.statLabel}>News</Text>
+                            </View>
                         </View>
                         <View style={styles.statBox}>
-                            <Text style={styles.statValue}>{stats.totalContent || 0}</Text>
-                            <Text style={styles.statLabel}>Total</Text>
+                            <View style={[styles.statIconBox, { backgroundColor: isDarkMode ? '#374151' : '#f1f5f9' }]}>
+                                <Ionicons name="pie-chart" size={18} color={isDarkMode ? '#cbd5e1' : '#475569'} />
+                            </View>
+                            <View style={styles.statInfo}>
+                                <Text style={styles.statValue}>{stats.totalContent || 0}</Text>
+                                <Text style={styles.statLabel}>Total</Text>
+                            </View>
                         </View>
                     </MotiView>
                 )}
@@ -336,6 +400,11 @@ export default function UserProfileScreen() {
                                 <Ionicons name="shield-checkmark" size={20} color="#d97706" />
                             </View>
                             <Text style={styles.menuText}>Admin Mode</Text>
+                            {totalPending > 0 && (
+                                <View style={{ backgroundColor: '#ef4444', height: 20, minWidth: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6, marginRight: 8 }}>
+                                    <Text style={{ color: '#fff', fontSize: 11, fontFamily: 'Outfit_700Bold' }}>{totalPending}</Text>
+                                </View>
+                            )}
                             <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
                         </TouchableOpacity>
                     )}
@@ -480,14 +549,19 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
 
     sectionTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 12, marginLeft: 4 },
 
-    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginBottom: 24 },
+    statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 14, marginBottom: 28 },
     statBox: {
-        width: '31%', backgroundColor: colors.surface, paddingVertical: 14, borderRadius: 14,
-        alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: isDarkMode ? 0.2 : 0.04, shadowRadius: 3,
-        borderWidth: 1, borderColor: isDarkMode ? colors.border : '#e2e8f0'
+        width: '48%', backgroundColor: colors.surface, paddingVertical: 14, paddingHorizontal: 12, borderRadius: 20,
+        flexDirection: 'row', alignItems: 'center', gap: 12,
+        elevation: 2, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 8,
+        borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border
     },
-    statValue: { fontSize: 20, fontFamily: 'Outfit_700Bold', color: '#10b981', marginBottom: 2 },
-    statLabel: { fontSize: 11, fontFamily: 'Outfit_500Medium', color: colors.textDim },
+    statIconBox: {
+        width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center'
+    },
+    statInfo: { flex: 1 },
+    statValue: { fontSize: 20, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: -2 },
+    statLabel: { fontSize: 13, fontFamily: 'Outfit_500Medium', color: colors.textDim },
 
     menuContainer: { backgroundColor: colors.surface, borderRadius: 24, padding: 8, elevation: 2, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 1 }, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 4, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
     menuItem: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12 },

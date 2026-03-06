@@ -23,8 +23,8 @@ export default function PendingApprovalsScreen() {
         { id: 'jobs', label: 'Jobs', icon: 'briefcase', color: '#10b981' },
         { id: 'events', label: 'Events', icon: 'calendar', color: '#10b981' },
         { id: 'properties', label: 'Properties', icon: 'home', color: '#10b981' },
-        { id: 'community', label: 'Community', icon: 'people', color: '#10b981' },
-        { id: 'promotions', label: 'Promotions', icon: 'megaphone', color: '#10b981' }
+        { id: 'community', label: 'Citizen News', icon: 'people', color: '#10b981' },
+        { id: 'promotions', label: 'Local Market', icon: 'megaphone', color: '#10b981' }
     ];
 
     useEffect(() => {

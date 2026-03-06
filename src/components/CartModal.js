@@ -3,13 +3,44 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Modal,
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import Toast from 'react-native-toast-message';
+import * as SecureStore from 'expo-secure-store';
+import { ThemeContext } from '../context/ThemeContext';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
 export default function CartModal({ isVisible, onClose, cart, refreshCart }) {
+    const { isDarkMode, colors } = React.useContext(ThemeContext);
+    const styles = getStyles(colors, isDarkMode);
+
     const [formData, setFormData] = useState({ name: '', phone: '', address: '', mapLink: '' });
     const [submitting, setSubmitting] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
+
+    React.useEffect(() => {
+        if (isVisible) {
+            fetchUserProfile();
+        }
+    }, [isVisible]);
+
+    const fetchUserProfile = async () => {
+        try {
+            const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+            if (!token) return;
+            const res = await axios.get(`${BASE_URL}/user/profile`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.data?.data) {
+                const user = res.data.data;
+                setFormData(prev => ({
+                    ...prev,
+                    name: prev.name || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+                    phone: prev.phone || user.phone || ''
+                }));
+            }
+        } catch (e) {
+            // Ignore error if profile can't be fetched
+        }
+    };
 
     if (!cart) return null;
 
@@ -76,7 +107,7 @@ export default function CartModal({ isVisible, onClose, cart, refreshCart }) {
     return (
         <Modal visible={isVisible} animationType="slide" transparent={true} onRequestClose={onClose}>
             <View style={styles.modalOverlay}>
-                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.drawerContainer}>
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.drawerContainer}>
 
                     {/* Header */}
                     <View style={styles.header}>
@@ -85,11 +116,11 @@ export default function CartModal({ isVisible, onClose, cart, refreshCart }) {
                             {cart.vendor && <Text style={styles.headerSubtitle}>Ordering from {cart.vendor.shopName}</Text>}
                         </View>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                            <Ionicons name="close" size={24} color="#4b5563" />
+                            <Ionicons name="close" size={24} color={colors.text} />
                         </TouchableOpacity>
                     </View>
 
-                    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+                    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                         {/* Cart Items */}
                         <View style={styles.itemsList}>
                             {cart.items.map((item) => (
@@ -134,6 +165,7 @@ export default function CartModal({ isVisible, onClose, cart, refreshCart }) {
                                 placeholder="Your Name *"
                                 value={formData.name}
                                 onChangeText={(t) => setFormData({ ...formData, name: t })}
+                                placeholderTextColor={colors.textDim}
                             />
                             <TextInput
                                 style={styles.input}
@@ -141,6 +173,7 @@ export default function CartModal({ isVisible, onClose, cart, refreshCart }) {
                                 keyboardType="phone-pad"
                                 value={formData.phone}
                                 onChangeText={(t) => setFormData({ ...formData, phone: t })}
+                                placeholderTextColor={colors.textDim}
                             />
                             <TextInput
                                 style={[styles.input, styles.textArea]}
@@ -148,6 +181,7 @@ export default function CartModal({ isVisible, onClose, cart, refreshCart }) {
                                 multiline
                                 value={formData.address}
                                 onChangeText={(t) => setFormData({ ...formData, address: t })}
+                                placeholderTextColor={colors.textDim}
                             />
                         </View>
                     </ScrollView>
@@ -202,54 +236,54 @@ export default function CartModal({ isVisible, onClose, cart, refreshCart }) {
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors, isDarkMode) => StyleSheet.create({
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    drawerContainer: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
+    drawerContainer: { backgroundColor: colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' },
 
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f3f4f6', backgroundColor: '#f9fafb', borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
     headerTextContainer: { flex: 1 },
-    headerTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: '#111827' },
-    headerSubtitle: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: '#6b7280', marginTop: 2 },
-    closeButton: { padding: 4, backgroundColor: '#e5e7eb', borderRadius: 20 },
+    headerTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
+    headerSubtitle: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: colors.textDim, marginTop: 2 },
+    closeButton: { padding: 4, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#e5e7eb', borderRadius: 20 },
 
     scrollArea: { flexShrink: 1 },
     scrollContent: { padding: 16, paddingBottom: 24 },
 
     itemsList: { marginBottom: 24 },
-    cartItem: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f3f4f6' },
-    itemImageContainer: { width: 64, height: 64, borderRadius: 8, backgroundColor: '#f3f4f6', overflow: 'hidden', marginRight: 12 },
+    cartItem: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+    itemImageContainer: { width: 64, height: 64, borderRadius: 8, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', overflow: 'hidden', marginRight: 12 },
     itemImage: { width: '100%', height: '100%', resizeMode: 'cover' },
 
     itemDetails: { flex: 1, justifyContent: 'space-between' },
     itemHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-    itemName: { fontSize: 15, fontFamily: 'Outfit_700Bold', color: '#1f2937', flex: 1 },
-    itemPrice: { fontSize: 15, fontFamily: 'Outfit_700Bold', color: '#111827' },
-    unitPrice: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: '#6b7280', marginTop: 2 },
+    itemName: { fontSize: 15, fontFamily: 'Outfit_700Bold', color: colors.text, flex: 1 },
+    itemPrice: { fontSize: 15, fontFamily: 'Outfit_700Bold', color: colors.text },
+    unitPrice: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: colors.textDim, marginTop: 2 },
 
     itemActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-    qtyControl: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 6, backgroundColor: '#fff' },
-    qtyButton: { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#f9fafb' },
-    qtyBtnText: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: '#4b5563' },
-    qtyText: { paddingHorizontal: 12, fontSize: 14, fontFamily: 'Outfit_400Regular', fontFamily: 'Outfit_600SemiBold' },
+    qtyControl: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.surface },
+    qtyButton: { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f9fafb' },
+    qtyBtnText: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: colors.text },
+    qtyText: { paddingHorizontal: 12, fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: colors.text },
     removeButton: { padding: 4 },
 
-    checkoutForm: { backgroundColor: '#f9fafb', padding: 16, borderRadius: 20, borderWidth: 1, borderColor: '#f3f4f6' },
-    formTitle: { fontSize: 13, fontFamily: 'Outfit_700Bold', color: '#374151', textTransform: 'uppercase', marginBottom: 12 },
-    input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 20, padding: 12, fontSize: 14, fontFamily: 'Outfit_400Regular', marginBottom: 10 },
+    checkoutForm: { backgroundColor: colors.surface, padding: 16, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
+    formTitle: { fontSize: 13, fontFamily: 'Outfit_700Bold', color: colors.textDim, textTransform: 'uppercase', marginBottom: 12 },
+    input: { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 20, padding: 12, fontSize: 14, fontFamily: 'Outfit_400Regular', marginBottom: 10, color: colors.text },
     textArea: { height: 80, textAlignVertical: 'top' },
 
-    footer: { padding: 16, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e5e7eb', shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 10 },
-    deliveryMsgBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eff6ff', padding: 8, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: '#bfdbfe' },
-    deliveryMsgText: { color: '#1d4ed8', fontSize: 12, fontFamily: 'Outfit_600SemiBold', marginLeft: 6 },
+    footer: { padding: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border, shadowColor: colors.shadow, shadowOffset: { width: 0, height: -4 }, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 8, elevation: 10 },
+    deliveryMsgBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: isDarkMode ? 'rgba(59,130,246,0.1)' : '#eff6ff', padding: 8, borderRadius: 8, marginBottom: 12, borderWidth: 1, borderColor: isDarkMode ? '#1e3a8a' : '#bfdbfe' },
+    deliveryMsgText: { color: isDarkMode ? '#60a5fa' : '#1d4ed8', fontSize: 12, fontFamily: 'Outfit_600SemiBold', marginLeft: 6 },
 
     totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-    totalLabel: { fontSize: 14, fontFamily: 'Outfit_400Regular', color: '#4b5563' },
-    totalValue: { fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: '#111827' },
-    divider: { height: 1, borderStyle: 'dashed', borderWidth: 1, borderColor: '#e5e7eb', marginVertical: 8, borderRadius: 1 },
-    grandTotalLabel: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: '#111827' },
-    grandTotalValue: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: '#111827' },
+    totalLabel: { fontSize: 14, fontFamily: 'Outfit_400Regular', color: colors.textDim },
+    totalValue: { fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: colors.text },
+    divider: { height: 1, borderStyle: 'dashed', borderWidth: 1, borderColor: colors.border, marginVertical: 8, borderRadius: 1 },
+    grandTotalLabel: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
+    grandTotalValue: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
 
-    checkoutBtn: { flexDirection: 'row', backgroundColor: '#059669', padding: 16, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginTop: 16, gap: 8 },
+    checkoutBtn: { flexDirection: 'row', backgroundColor: colors.primary, padding: 16, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginTop: 16, gap: 8 },
     checkoutBtnDisabled: { opacity: 0.7 },
-    checkoutBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Outfit_400Regular', fontFamily: 'Outfit_700Bold' }
+    checkoutBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Outfit_700Bold' }
 });

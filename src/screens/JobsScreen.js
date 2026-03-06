@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vibration, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Linking, TextInput, RefreshControl } from 'react-native';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +25,9 @@ export default function JobsScreen() {
     const [imageDimensions, setImageDimensions] = useState({});
     const flatListRef = useRef(null);
     const scrollOffset = useRef(0);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showSearch, setShowSearch] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Fetch once on mount
     useEffect(() => { fetchJobs(0, false); }, []);
@@ -77,6 +80,20 @@ export default function JobsScreen() {
             fetchJobs(page + 1, true);
         }
     };
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        setPage(0);
+        setHasMore(true);
+        await fetchJobs(0, false);
+        setRefreshing(false);
+    };
+
+    const filteredJobs = jobs.filter(job =>
+        job.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        job.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        job.location?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     const isJobExpired = (deadline) => {
         if (!deadline) return false;
@@ -181,8 +198,21 @@ export default function JobsScreen() {
                 <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8 }}>
                     <Ionicons name="chevron-back" size={28} color={colors.primary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Job Board</Text>
-                <Ionicons name="search" size={24} color={colors.primary} style={{ marginLeft: 'auto' }} />
+                {showSearch ? (
+                    <TextInput
+                        style={{ flex: 1, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginHorizontal: 10, color: colors.text, fontFamily: 'Outfit_400Regular' }}
+                        placeholder="Search jobs..."
+                        placeholderTextColor={colors.textDim}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        autoFocus
+                    />
+                ) : (
+                    <Text style={styles.headerTitle}>Job Board</Text>
+                )}
+                <TouchableOpacity onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }} style={{ marginLeft: showSearch ? 0 : 'auto', padding: 4 }}>
+                    <Ionicons name={showSearch ? "close" : "search"} size={24} color={colors.primary} />
+                </TouchableOpacity>
             </View>
 
             {loading && !loadingMore ? (
@@ -192,7 +222,7 @@ export default function JobsScreen() {
             ) : (
                 <FlatList
                     ref={flatListRef}
-                    data={jobs}
+                    data={filteredJobs}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderJob}
                     contentContainerStyle={styles.listContent}
@@ -200,6 +230,14 @@ export default function JobsScreen() {
                     onEndReachedThreshold={0.5}
                     onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
                     scrollEventThrottle={16}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
+                        />
+                    }
                     ListFooterComponent={() =>
                         loadingMore ? <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} /> : null
                     }

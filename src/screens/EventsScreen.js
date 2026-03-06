@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vibration, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Linking, TextInput, RefreshControl } from 'react-native';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +22,9 @@ export default function EventsScreen() {
     const [imageDimensions, setImageDimensions] = useState({});
     const flatListRef = useRef(null);
     const scrollOffset = useRef(0);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showSearch, setShowSearch] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Fetch once on mount
     useEffect(() => { fetchEvents(); }, []);
@@ -51,6 +54,17 @@ export default function EventsScreen() {
             setLoading(false);
         }
     };
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await fetchEvents();
+        setRefreshing(false);
+    };
+
+    const filteredEvents = events.filter(event =>
+        event.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.location?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     const isEventOver = (eventDate, endDate) => {
         const dateToCheck = endDate || eventDate;
@@ -169,11 +183,22 @@ export default function EventsScreen() {
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8 }}>
-                    <Ionicons name="chevron-back" size={28} color="#9333ea" />
+                    <Ionicons name="chevron-back" size={28} color={isDarkMode ? colors.primaryLight : '#9333ea'} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Discover Events</Text>
-                <TouchableOpacity style={{ marginLeft: 'auto' }}>
-                    <Ionicons name="add-circle" size={26} color="#9333ea" />
+                {showSearch ? (
+                    <TextInput
+                        style={{ flex: 1, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginHorizontal: 10, color: colors.text, fontFamily: 'Outfit_400Regular' }}
+                        placeholder="Search events..."
+                        placeholderTextColor={colors.textDim}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        autoFocus
+                    />
+                ) : (
+                    <Text style={styles.headerTitle}>Discover Events</Text>
+                )}
+                <TouchableOpacity onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }} style={{ marginLeft: showSearch ? 0 : 'auto', padding: 4 }}>
+                    <Ionicons name={showSearch ? "close" : "search"} size={24} color={isDarkMode ? colors.primaryLight : '#9333ea'} />
                 </TouchableOpacity>
             </View>
 
@@ -184,12 +209,20 @@ export default function EventsScreen() {
             ) : (
                 <FlatList
                     ref={flatListRef}
-                    data={events}
+                    data={filteredEvents}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderEvent}
                     contentContainerStyle={styles.listContent}
                     onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
                     scrollEventThrottle={16}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            tintColor={isDarkMode ? colors.primaryLight : '#9333ea'}
+                            colors={[isDarkMode ? colors.primaryLight : '#9333ea']}
+                        />
+                    }
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="calendar" size={48} color="#d1d5db" />

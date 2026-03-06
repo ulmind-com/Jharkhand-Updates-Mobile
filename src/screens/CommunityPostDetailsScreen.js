@@ -12,6 +12,7 @@ import ImageViewing from '../components/ImageViewer';
 import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
 import { Audio } from 'expo-av';
+import LinkedText from '../components/LinkedText';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -384,7 +385,7 @@ export default function CommunityPostDetailsScreen() {
 
     const handleShare = async () => {
         try {
-            const webUrl = `https://jharkhandupdates.com/community/details/${post.id || post._id}`;
+            const webUrl = `https://jharkhandupdates.com/citizen-news/details/${post.id || post._id}`;
             const title = post.title || 'Community Post';
             const snippet = (post.content || '').trim().slice(0, 100);
             await Share.share({
@@ -459,7 +460,7 @@ export default function CommunityPostDetailsScreen() {
                             </TouchableOpacity>
                         )}
 
-                        <Text style={styles.postContent}>{post.content}</Text>
+                        <LinkedText style={styles.postContent}>{post.content}</LinkedText>
                     </View>
 
                     {/* Comments Section */}

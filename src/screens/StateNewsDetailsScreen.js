@@ -12,6 +12,7 @@ import ImageViewing from '../components/ImageViewer';
 import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
 import { Audio } from 'expo-av';
+import LinkedText from '../components/LinkedText';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -168,7 +169,7 @@ const CommentItem = ({ comment, level = 0, onReply, onEdit, onDelete, currentUse
                             )}
                         </View>
                     </View>
-                    <Text style={styles.commentContent}>{comment.content}</Text>
+                    <LinkedText style={styles.commentContent}>{comment.content}</LinkedText>
 
                     <View style={styles.commentActions}>
                         <TouchableOpacity style={styles.replyButton} onPress={() => onReply(comment)}>
@@ -584,12 +585,12 @@ export default function StateNewsDetailsScreen() {
                                 // COLLAPSED: first chunk (15 lines) + first ad + 5 lines of next chunk + See More
                                 return (
                                     <>
-                                        <Text style={styles.newsContent}>{chunks[0]}</Text>
+                                        <LinkedText style={styles.newsContent}>{chunks[0]}</LinkedText>
                                         {chunks.length > 1 && renderPropAd(0)}
                                         {chunks.length > 1 && (
-                                            <Text style={styles.newsContent} numberOfLines={5}>
+                                            <LinkedText style={styles.newsContent} numberOfLines={5}>
                                                 {chunks[1]}
-                                            </Text>
+                                            </LinkedText>
                                         )}
                                         {hasMore && (
                                             <TouchableOpacity onPress={() => setSeeMore(true)} style={styles.seeMoreBtn}>
@@ -605,7 +606,7 @@ export default function StateNewsDetailsScreen() {
                                 <>
                                     {chunks.map((chunk, idx) => (
                                         <React.Fragment key={idx}>
-                                            <Text style={styles.newsContent}>{chunk}</Text>
+                                            <LinkedText style={styles.newsContent}>{chunk}</LinkedText>
                                             {idx < chunks.length - 1 && renderPropAd(idx)}
                                         </React.Fragment>
                                     ))}

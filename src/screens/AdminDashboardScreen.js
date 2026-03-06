@@ -1,16 +1,50 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { Vibration, View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import axios from 'axios';
+import * as SecureStore from 'expo-secure-store';
 import { View as MotiView } from 'moti';
 import { ThemeContext } from '../context/ThemeContext';
+
+const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
 export default function AdminDashboardScreen() {
     const navigation = useNavigation();
     const { isDarkMode, colors } = React.useContext(ThemeContext);
     const styles = getStyles(colors, isDarkMode);
+
+    const [totalPending, setTotalPending] = useState(0);
+
+    useFocusEffect(
+        useCallback(() => {
+            const fetchPending = async () => {
+                try {
+                    const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+                    if (!token) return;
+
+                    const fetchCount = async (categoryStr) => {
+                        try {
+                            const endpoint = categoryStr === 'promotions' ? 'admin/vendors/pending' : `${categoryStr}/pending`;
+                            const res = await axios.get(`${BASE_URL}/${endpoint}`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                            });
+                            return (categoryStr === 'promotions' ? res.data.vendors || res.data.data || [] : res.data.data || []).length;
+                        } catch (e) {
+                            return 0;
+                        }
+                    };
+
+                    const counts = await Promise.all(['jobs', 'events', 'properties', 'community', 'promotions'].map(fetchCount));
+                    const total = counts.reduce((a, b) => a + b, 0);
+                    setTotalPending(total);
+                } catch (e) { }
+            };
+            fetchPending();
+        }, [])
+    );
 
     const adminOptions = [
         {
@@ -71,6 +105,11 @@ export default function AdminDashboardScreen() {
                             >
                                 <View style={[styles.iconWrapper, { backgroundColor: isDarkMode ? colors.surfaceDeeper : item.bg }]}>
                                     <Ionicons name={item.icon} size={32} color={item.color} />
+                                    {item.route === 'PendingApprovals' && totalPending > 0 && (
+                                        <View style={styles.badge}>
+                                            <Text style={styles.badgeText}>{totalPending}</Text>
+                                        </View>
+                                    )}
                                 </View>
                                 <Text style={styles.itemTitle}>{item.title}</Text>
                             </TouchableOpacity>
@@ -145,6 +184,25 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 16
+    },
+    badge: {
+        position: 'absolute',
+        top: -6,
+        right: -6,
+        backgroundColor: '#ef4444',
+        height: 24,
+        minWidth: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 6,
+        borderWidth: 2,
+        borderColor: colors.surface
+    },
+    badgeText: {
+        color: '#fff',
+        fontSize: 12,
+        fontFamily: 'Outfit_700Bold'
     },
     itemTitle: {
         fontSize: 15,

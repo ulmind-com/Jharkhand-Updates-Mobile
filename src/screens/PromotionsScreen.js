@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, Dimensions, TouchableOpacity, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, Dimensions, TouchableOpacity, TextInput, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -45,6 +45,7 @@ export default function PromotionsScreen() {
     const [myVendor, setMyVendor] = useState(null);
     const flatListRef = useRef(null);
     const scrollOffset = useRef(0);
+    const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
         fetchShops(0, false);
@@ -108,6 +109,14 @@ export default function PromotionsScreen() {
         if (!loadingMore && hasMore && !loading) {
             fetchShops(page + 1, true);
         }
+    };
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        setPage(0);
+        setHasMore(true);
+        await fetchShops(0, false);
+        setRefreshing(false);
     };
 
     const filteredShops = shops.filter(shop =>
@@ -258,7 +267,7 @@ export default function PromotionsScreen() {
                 >
                     <Ionicons name="chevron-back" size={28} color={colors.primary} />
                 </TouchableOpacity>
-                <Text style={[styles.navbarTitle, { color: colors.primary }]}>Promotions</Text>
+                <Text style={[styles.navbarTitle, { color: colors.primary }]}>Local Market</Text>
                 {myVendor ? (
                     <TouchableOpacity
                         style={styles.manageShopBtn}
@@ -285,12 +294,20 @@ export default function PromotionsScreen() {
                     data={filteredShops}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderCard}
-                    ListHeaderComponent={renderHeader}
+                    ListHeaderComponent={renderHeader()}
                     contentContainerStyle={styles.listContent}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.5}
                     onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
                     scrollEventThrottle={16}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
+                        />
+                    }
                     ListFooterComponent={renderFooter}
                     ListEmptyComponent={renderEmptyComponent}
                     showsVerticalScrollIndicator={false}

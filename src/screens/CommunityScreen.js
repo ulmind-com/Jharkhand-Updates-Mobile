@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Vibration } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Vibration, RefreshControl } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,8 @@ import { Audio } from 'expo-av';
 import { PostSkeleton } from '../components/Skeletons';
 import TopHeader from '../components/TopHeader';
 import { ThemeContext } from '../context/ThemeContext';
+import LinkedText from '../components/LinkedText';
+import ExternalNewsCard from '../components/ExternalNewsCard';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -51,9 +53,19 @@ export default function CommunityScreen() {
     const styles = getStyles(colors, isDarkMode);
     const flatListRef = useRef(null);
     const scrollOffset = useRef(0);
+    const [refreshing, setRefreshing] = useState(false);
+    const [externalNews, setExternalNews] = useState([]);
+
+    // Persistent external news injection pool
+    const extNewsPoolRef = useRef([]);
+    const extNewsIdxRef = useRef(0);
+    const extNextGapRef = useRef(1 + Math.floor(Math.random() * 2)); // 1-2
+    const extGapCountRef = useRef(0);
 
     // Fetch once on mount
-    useEffect(() => { fetchPosts(0, false); }, []);
+    useEffect(() => {
+        fetchExternalNews().then(() => fetchPosts(0, false));
+    }, []);
 
     // Restore scroll position when navigating back from details
     useEffect(() => {
@@ -109,11 +121,82 @@ export default function CommunityScreen() {
             }
         } catch (error) {
             console.error("Error fetching community posts:", error);
-            Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to load community posts' });
+            Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to load citizen news' });
         } finally {
             setLoading(false);
             setLoadingMore(false);
         }
+    };
+
+    const fetchExternalNews = async () => {
+        try {
+            const res = await axios.get(`${BASE_URL}/external-news/top-headlines`);
+            const data = res.data?.data || res.data;
+            // GNews.io uses 'articles', same key as NewsAPI
+            const rawArticles = data?.articles || [];
+            const articles = rawArticles.filter(a => a.title && a.url);
+            extNewsPoolRef.current = articles; // Keep original order (latest first)
+            extNewsIdxRef.current = 0;
+            extGapCountRef.current = 0;
+            extNextGapRef.current = 2 + Math.floor(Math.random() * 2); // insert a community post every 2-3 news items
+        } catch (e) {
+            console.log('External news fetch failed:', e?.message);
+        }
+    };
+
+    // Build feed: NEWS is PRIMARY, only RECENT community posts are interleaved
+    const buildMergedFeed = (communityPosts, newsPool) => {
+        if (!newsPool || !newsPool.length) {
+            return communityPosts.map(p => ({ ...p, _type: 'community' }));
+        }
+
+        // Split community posts: recent (within 4 days) vs older
+        const now = Date.now();
+        const FOUR_DAYS = 4 * 24 * 60 * 60 * 1000;
+        const recentPosts = [];
+        const olderPosts = [];
+        communityPosts.forEach(p => {
+            const postTime = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+            if (now - postTime <= FOUR_DAYS) {
+                recentPosts.push(p);
+            } else {
+                olderPosts.push(p);
+            }
+        });
+
+        const result = [];
+        let recentIdx = 0;
+        let newsCount = 0;
+        const insertEvery = 2 + Math.floor(Math.random() * 2); // every 2-3 news
+
+        // News articles first, with only RECENT community posts interleaved
+        newsPool.forEach((newsItem, idx) => {
+            result.push({
+                ...newsItem,
+                id: 'news_' + idx + '_' + (newsItem.url || Date.now()),
+                _type: 'external_news'
+            });
+            newsCount++;
+
+            if (newsCount >= insertEvery && recentIdx < recentPosts.length) {
+                result.push({ ...recentPosts[recentIdx], _type: 'community' });
+                recentIdx++;
+                newsCount = 0;
+            }
+        });
+
+        // Remaining recent posts
+        while (recentIdx < recentPosts.length) {
+            result.push({ ...recentPosts[recentIdx], _type: 'community' });
+            recentIdx++;
+        }
+
+        // Older community posts go at the very end
+        olderPosts.forEach(p => {
+            result.push({ ...p, _type: 'community' });
+        });
+
+        return result;
     };
 
     const fetchComments = async (postId) => {
@@ -135,7 +218,28 @@ export default function CommunityScreen() {
         }
     };
 
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        extNewsIdxRef.current = 0;
+        extGapCountRef.current = 0;
+        setPage(0);
+        setHasMore(true);
+        await fetchExternalNews();
+        await fetchPosts(0, false);
+        setRefreshing(false);
+    };
+
     const renderPost = ({ item }) => {
+        if (item._type === 'external_news') {
+            return (
+                <ExternalNewsCard
+                    item={item}
+                    colors={colors}
+                    isDarkMode={isDarkMode}
+                />
+            );
+        }
+
         const hasImage = item.imageUrls && item.imageUrls.length > 0;
         const authorName = `${item.author.firstName} ${item.author.lastName}`;
         const _cd = new Date(item.createdAt);
@@ -176,7 +280,7 @@ export default function CommunityScreen() {
                         />
                     )}
 
-                    <Text style={styles.postContent} numberOfLines={4}>{item.content}</Text>
+                    <LinkedText style={styles.postContent} numberOfLines={4}>{item.content}</LinkedText>
                 </TouchableOpacity>
 
                 {/* Actions */}
@@ -271,19 +375,27 @@ export default function CommunityScreen() {
             ) : (
                 <FlatList
                     ref={flatListRef}
-                    data={posts}
-                    keyExtractor={(item) => item.id.toString()}
+                    data={buildMergedFeed(posts, extNewsPoolRef.current)}
+                    keyExtractor={(item, index) => item.id ? item.id.toString() + index : index.toString()}
                     renderItem={renderPost}
                     contentContainerStyle={styles.listContent}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.5}
                     onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
                     scrollEventThrottle={16}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
+                        />
+                    }
                     ListFooterComponent={() =>
                         loadingMore ? <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 20 }} /> : null
                     }
                     ListEmptyComponent={
-                        <Text style={styles.emptyText}>No community posts yet.</Text>
+                        <Text style={styles.emptyText}>No citizen news posts yet.</Text>
                     }
                 />
             )}

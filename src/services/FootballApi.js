@@ -63,15 +63,20 @@ async function fbFetch(path) {
 }
 
 // ─── Filter + sort matches ─────────────────────────────────────────
-function filterAndSortFootball(matches = []) {
-    return matches
+function filterAndSortFootball(matches = [], sortFn) {
+    const filtered = matches
         .map(m => ({
             match: m,
             priority: COMP_PRIORITY[m.competition?.code] ?? 0,
         }))
-        .filter(({ priority }) => priority >= 0)
-        .sort((a, b) => b.priority - a.priority)
-        .map(({ match }) => match);
+        .filter(({ priority }) => priority >= 0);
+
+    if (sortFn) {
+        filtered.sort(sortFn);
+    } else {
+        filtered.sort((a, b) => b.priority - a.priority);
+    }
+    return filtered.map(({ match }) => match);
 }
 
 // ─── Convert UTC → IST display ─────────────────────────────────────
@@ -167,9 +172,11 @@ export async function fetchFootballUpcoming() {
         seen.add(m.id);
         return true;
     });
-    // Sort by date ascending (soonest first), then by priority
-    merged.sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
-    return filterAndSortFootball(merged);
+    // Sort by priority descending, then by date ascending (soonest first)
+    return filterAndSortFootball(merged, (a, b) => {
+        if (a.priority !== b.priority) return b.priority - a.priority;
+        return new Date(a.match.utcDate) - new Date(b.match.utcDate);
+    });
 }
 
 /** Fetch recent finished matches (last 7 days) */
@@ -179,7 +186,11 @@ export async function fetchFootballRecent() {
     minus7.setDate(minus7.getDate() - 7);
     const fmt = d => d.toISOString().split('T')[0];
     const json = await fbFetch(`/matches?dateFrom=${fmt(minus7)}&dateTo=${fmt(today)}&status=FINISHED`);
-    return filterAndSortFootball(json.matches || []);
+    // Sort by priority descending, then by date descending (most recent first)
+    return filterAndSortFootball(json.matches || [], (a, b) => {
+        if (a.priority !== b.priority) return b.priority - a.priority;
+        return new Date(b.match.utcDate) - new Date(a.match.utcDate);
+    });
 }
 
 /** Fetch head2head / match detail */

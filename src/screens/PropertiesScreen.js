@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Vibration, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, ScrollView } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, ScrollView, RefreshControl } from 'react-native';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +33,7 @@ export default function PropertiesScreen() {
     const [isFilterVisible, setIsFilterVisible] = useState(false);
     const flatListRef = useRef(null);
     const scrollOffset = useRef(0);
+    const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
         fetchProperties();
@@ -70,6 +71,12 @@ export default function PropertiesScreen() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        await fetchProperties();
+        setRefreshing(false);
     };
 
     const applyFilters = () => {
@@ -363,6 +370,14 @@ export default function PropertiesScreen() {
                     contentContainerStyle={styles.listContent}
                     onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}
                     scrollEventThrottle={16}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
+                        />
+                    }
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Ionicons name="home-outline" size={64} color={colors.textDim} />

@@ -11,6 +11,7 @@ import { View as MotiView } from 'moti';
 import ImageViewing from '../components/ImageViewer';
 import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
+import LinkedText from '../components/LinkedText';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -475,13 +476,17 @@ export default function JobDetailsScreen() {
                             <View style={styles.divider} />
 
                             <Text style={styles.sectionHeader}>Description</Text>
-                            <Text style={styles.jobContent}>{job.description?.replace(/<[^>]*>?/gm, "")}</Text>
+                            <LinkedText style={styles.jobContent}>{job.description?.replace(/<[^>]*>?/gm, "")}</LinkedText>
 
                             {job.reglink && !expired && (
-                                <TouchableOpacity style={styles.applyBtn} onPress={() => Linking.openURL(job.reglink)}>
-                                    <Text style={styles.applyBtnText}>Apply Now</Text>
-                                    <Ionicons name="open-outline" size={18} color="#fff" style={{ marginLeft: 6 }} />
-                                </TouchableOpacity>
+                                <View style={{ marginTop: 10 }}>
+                                    <Text style={styles.sectionHeader}>Apply Link / Website</Text>
+                                    <LinkedText style={styles.jobContent}>{job.reglink}</LinkedText>
+                                    <TouchableOpacity style={styles.applyBtn} onPress={() => Linking.openURL(job.reglink)}>
+                                        <Text style={styles.applyBtnText}>Apply Now</Text>
+                                        <Ionicons name="open-outline" size={18} color="#fff" style={{ marginLeft: 6 }} />
+                                    </TouchableOpacity>
+                                </View>
                             )}
                         </View>
                     </MotiView>
@@ -582,7 +587,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
 
     divider: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
     sectionHeader: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 8 },
-    jobContent: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.textDim, lineHeight: 24, marginBottom: 20 },
+    jobContent: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.textDim, lineHeight: 24, marginBottom: 20, textAlign: 'justify' },
 
     applyBtn: { backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 20, elevation: 2 },
     applyBtnText: { color: '#fff', fontSize: 16, fontFamily: 'Outfit_700Bold' },

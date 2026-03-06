@@ -11,6 +11,7 @@ import { View as MotiView } from 'moti';
 import ImageViewing from '../components/ImageViewer';
 import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
+import LinkedText from '../components/LinkedText';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -482,7 +483,18 @@ export default function EventDetailsScreen() {
                             <View style={styles.divider} />
 
                             <Text style={styles.sectionHeader}>About This Event</Text>
-                            <Text style={styles.eventContent}>{event.description?.replace(/<[^>]*>?/gm, "")}</Text>
+                            <LinkedText style={styles.eventContent}>{event.description?.replace(/<[^>]*>?/gm, "")}</LinkedText>
+
+                            {event.reglink && !isPastEvent && (
+                                <View style={{ marginTop: 10 }}>
+                                    <Text style={styles.sectionHeader}>Registration Link / Website</Text>
+                                    <LinkedText style={styles.eventContent}>{event.reglink}</LinkedText>
+                                    <TouchableOpacity style={{ backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 20, elevation: 2 }} onPress={() => Linking.openURL(event.reglink)}>
+                                        <Text style={{ color: '#fff', fontSize: 16, fontFamily: 'Outfit_700Bold' }}>Registration</Text>
+                                        <Ionicons name="open-outline" size={18} color="#fff" style={{ marginLeft: 6 }} />
+                                    </TouchableOpacity>
+                                </View>
+                            )}
 
                         </View>
                     </MotiView>
@@ -588,7 +600,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
 
     divider: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
     sectionHeader: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 8 },
-    eventContent: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.textDim, lineHeight: 24, marginBottom: 20 },
+    eventContent: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.textDim, lineHeight: 24, marginBottom: 20, textAlign: 'justify' },
 
     commentsSection: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, elevation: 2, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
     commentsHeader: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 16 },

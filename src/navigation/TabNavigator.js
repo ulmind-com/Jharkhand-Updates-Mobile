@@ -74,6 +74,7 @@ export default function TabNavigator() {
             >
                 <Tab.Screen
                     name="Community"
+                    options={{ tabBarLabel: 'Citizen News' }}
                     component={CommunityScreen}
                     listeners={{ tabPress: () => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                 />

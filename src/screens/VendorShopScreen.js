@@ -10,11 +10,13 @@ import { View as MotiView } from 'moti';
 import * as SecureStore from 'expo-secure-store';
 import { Share, Modal } from 'react-native';
 import CartModal from '../components/CartModal';
+import { ThemeContext } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
-const ProductCard = ({ product, onAdd, isAdding }) => {
+const ProductCard = ({ product, onAdd, isAdding, colors, isDarkMode }) => {
+    const styles = getStyles(colors, isDarkMode);
     const isOutOfStock = product.stockStatus !== "IN_STOCK" && product.stockStatus !== "In Stock";
 
     return (
@@ -77,6 +79,8 @@ const ProductCard = ({ product, onAdd, isAdding }) => {
 };
 
 export default function VendorShopScreen() {
+    const { isDarkMode, colors } = React.useContext(ThemeContext);
+    const styles = getStyles(colors, isDarkMode);
     const route = useRoute();
     const navigation = useNavigation();
     // For now we will hardcode a slug or accept it from params.
@@ -188,31 +192,31 @@ export default function VendorShopScreen() {
             <SafeAreaView style={styles.container} edges={['top']}>
                 <View style={styles.headerOverlay}>
                     <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <Ionicons name="arrow-back" size={24} color="#111827" />
+                        <Ionicons name="arrow-back" size={24} color={colors.text} />
                     </TouchableOpacity>
                 </View>
                 <MotiView
                     from={{ opacity: 0.5 }} animate={{ opacity: 1 }}
                     transition={{ type: 'timing', duration: 1000, loop: true }}
                 >
-                    <View style={[styles.coverContainer, { backgroundColor: '#e5e7eb' }]} />
+                    <View style={[styles.coverContainer, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#e5e7eb' }]} />
                     <View style={styles.profileSection}>
-                        <View style={[styles.logoContainer, { backgroundColor: '#d1d5db', borderWidth: 4, borderColor: '#fff' }]} />
-                        <View style={[styles.shopInfo, { height: 100, backgroundColor: '#fff', borderRadius: 20 }]}>
-                            <View style={{ height: 24, width: '60%', backgroundColor: '#e5e7eb', borderRadius: 4, marginBottom: 8 }} />
-                            <View style={{ height: 14, width: '40%', backgroundColor: '#e5e7eb', borderRadius: 4, marginBottom: 12 }} />
-                            <View style={{ height: 14, width: '90%', backgroundColor: '#f3f4f6', borderRadius: 4 }} />
+                        <View style={[styles.logoContainer, { backgroundColor: isDarkMode ? colors.surface : '#d1d5db', borderColor: colors.surface }]} />
+                        <View style={[styles.shopInfo, { height: 100 }]}>
+                            <View style={{ height: 24, width: '60%', backgroundColor: colors.border, borderRadius: 4, marginBottom: 8 }} />
+                            <View style={{ height: 14, width: '40%', backgroundColor: colors.border, borderRadius: 4, marginBottom: 12 }} />
+                            <View style={{ height: 14, width: '90%', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 4 }} />
                         </View>
                     </View>
                     <View style={styles.productsSection}>
                         {[1, 2, 3, 4].map(i => (
                             <View key={i} style={[styles.productCard, { marginBottom: 16 }]}>
-                                <View style={[styles.productImageContainer, { backgroundColor: '#e5e7eb' }]} />
+                                <View style={[styles.productImageContainer, { backgroundColor: colors.border }]} />
                                 <View style={{ flex: 1, paddingVertical: 4 }}>
-                                    <View style={{ height: 16, width: '80%', backgroundColor: '#e5e7eb', borderRadius: 4, marginBottom: 8 }} />
-                                    <View style={{ height: 12, width: '100%', backgroundColor: '#f3f4f6', borderRadius: 4, marginBottom: 4 }} />
-                                    <View style={{ height: 12, width: '60%', backgroundColor: '#f3f4f6', borderRadius: 4, marginBottom: 16 }} />
-                                    <View style={{ height: 20, width: '30%', backgroundColor: '#e5e7eb', borderRadius: 4 }} />
+                                    <View style={{ height: 16, width: '80%', backgroundColor: colors.border, borderRadius: 4, marginBottom: 8 }} />
+                                    <View style={{ height: 12, width: '100%', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 4, marginBottom: 4 }} />
+                                    <View style={{ height: 12, width: '60%', backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 4, marginBottom: 16 }} />
+                                    <View style={{ height: 20, width: '30%', backgroundColor: colors.border, borderRadius: 4 }} />
                                 </View>
                             </View>
                         ))}
@@ -232,7 +236,7 @@ export default function VendorShopScreen() {
             {/* Header Back Button Overlay */}
             <View style={styles.headerOverlay}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }}>
-                    <Ionicons name="arrow-back" size={24} color="#111827" />
+                    <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
             </View>
 
@@ -267,7 +271,7 @@ export default function VendorShopScreen() {
                         )}
                         {vendor.userId?.role === 'ADMIN' && (
                             <View style={styles.verifiedBadge}>
-                                <Ionicons name="checkmark-circle" size={16} color="#3b82f6" />
+                                <Ionicons name="checkmark-circle" size={16} color={colors.primary} />
                             </View>
                         )}
                     </TouchableOpacity>
@@ -292,12 +296,12 @@ export default function VendorShopScreen() {
                 {/* Products Section */}
                 <View style={styles.productsSection}>
                     {products.length === 0 ? (
-                        <View style={[styles.emptyState, { backgroundColor: '#fff', borderRadius: 16, padding: 32, borderWidth: 1, borderColor: '#e5e7eb', borderStyle: 'dashed' }]}>
-                            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-                                <Ionicons name="bag-handle" size={32} color="#d1d5db" />
+                        <View style={styles.emptyState}>
+                            <View style={styles.emptyIconWrapper}>
+                                <Ionicons name="bag-handle" size={32} color={colors.textDim} />
                             </View>
-                            <Text style={{ fontSize: 18, fontFamily: 'Outfit_700Bold', color: '#1f2937' }}>No products found</Text>
-                            <Text style={[styles.emptyText, { marginTop: 4 }]}>This shop hasn't added any products yet.</Text>
+                            <Text style={styles.emptyTitle}>No products found</Text>
+                            <Text style={styles.emptyText}>This shop hasn't added any products yet.</Text>
                         </View>
                     ) : (
                         <>
@@ -309,7 +313,7 @@ export default function VendorShopScreen() {
                                     </View>
                                     <View style={styles.grid}>
                                         {discountedProducts.map(p => (
-                                            <ProductCard key={p.id} product={p} onAdd={handleAddToCart} isAdding={addingToCartId === p.id} />
+                                            <ProductCard key={p.id} product={p} onAdd={handleAddToCart} isAdding={addingToCartId === p.id} colors={colors} isDarkMode={isDarkMode} />
                                         ))}
                                     </View>
                                 </View>
@@ -318,12 +322,12 @@ export default function VendorShopScreen() {
                             {regularProducts.length > 0 && (
                                 <View style={styles.categoryBlock}>
                                     <View style={styles.categoryHeader}>
-                                        <Ionicons name="bag-handle" size={20} color="#2563eb" />
+                                        <Ionicons name="bag-handle" size={20} color={colors.primary} />
                                         <Text style={styles.categoryTitle}>All Products</Text>
                                     </View>
                                     <View style={styles.grid}>
                                         {regularProducts.map(p => (
-                                            <ProductCard key={p.id} product={p} onAdd={handleAddToCart} isAdding={addingToCartId === p.id} />
+                                            <ProductCard key={p.id} product={p} onAdd={handleAddToCart} isAdding={addingToCartId === p.id} colors={colors} isDarkMode={isDarkMode} />
                                         ))}
                                     </View>
                                 </View>
@@ -385,32 +389,32 @@ export default function VendorShopScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors, isDarkMode) => StyleSheet.create({
     loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    container: { flex: 1, backgroundColor: '#f9fafb' },
+    container: { flex: 1, backgroundColor: colors.background },
     headerOverlay: { position: 'absolute', top: 40, left: 16, zIndex: 10 },
-    backButton: { backgroundColor: '#fff', borderRadius: 20, padding: 8, elevation: 4, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
+    backButton: { backgroundColor: colors.surface, borderRadius: 20, padding: 8, elevation: 4, shadowColor: colors.shadow, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 4 },
     scrollContent: { paddingBottom: 40 },
 
-    coverContainer: { width: '100%', height: 200, backgroundColor: '#e5e7eb' },
+    coverContainer: { width: '100%', height: 200, backgroundColor: colors.surfaceDeeper },
     coverImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-    coverPlaceholder: { flex: 1, backgroundColor: '#047857', alignItems: 'center', justifyContent: 'center', opacity: 0.8 },
+    coverPlaceholder: { flex: 1, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', opacity: 0.8 },
 
     profileSection: { paddingHorizontal: 16, marginTop: -40, zIndex: 2 },
     logoContainer: {
-        width: 100, height: 100, borderRadius: 50, backgroundColor: '#fff',
-        borderWidth: 4, borderColor: '#fff', elevation: 4, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8,
+        width: 100, height: 100, borderRadius: 50, backgroundColor: colors.surface,
+        borderWidth: 4, borderColor: colors.surface, elevation: 4, shadowColor: colors.shadow, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 8,
         alignItems: 'center', justifyContent: 'center', marginBottom: 12, overflow: 'hidden'
     },
     logoImage: { width: '100%', height: '100%', borderRadius: 50, resizeMode: 'cover' },
-    verifiedBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#fff', borderRadius: 20 },
+    verifiedBadge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: colors.surface, borderRadius: 20 },
 
-    shopInfo: { backgroundColor: '#fff', padding: 16, borderRadius: 20, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-    shopName: { fontSize: 24, fontFamily: 'Outfit_700Bold', color: '#111827', marginBottom: 4 },
+    shopInfo: { backgroundColor: colors.surface, padding: 16, borderRadius: 20, elevation: 2, shadowColor: colors.shadow, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 4, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
+    shopName: { fontSize: 24, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 4 },
     locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 12 },
-    locationText: { fontSize: 13, fontFamily: 'Outfit_400Regular', color: '#6b7280' },
-    shopDescription: { fontSize: 14, fontFamily: 'Outfit_400Regular', color: '#4b5563', lineHeight: 20 },
-    shareButton: { padding: 8, backgroundColor: '#f3f4f6', borderRadius: 12 },
+    locationText: { fontSize: 13, fontFamily: 'Outfit_400Regular', color: colors.textDim },
+    shopDescription: { fontSize: 14, fontFamily: 'Outfit_400Regular', color: colors.textDim, lineHeight: 20 },
+    shareButton: { padding: 8, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 12 },
 
     fullscreenModal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
     fullscreenCloseArea: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
@@ -421,43 +425,45 @@ const styles = StyleSheet.create({
     productsSection: { padding: 16, marginTop: 8 },
     categoryBlock: { marginBottom: 24 },
     categoryHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
-    categoryTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: '#111827' },
+    categoryTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
     grid: { gap: 16 },
 
     productCard: {
-        flexDirection: 'row', backgroundColor: '#fff', borderRadius: 20, padding: 12, gap: 12,
-        elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4
+        flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 20, padding: 12, gap: 12,
+        elevation: 2, shadowColor: colors.shadow, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 4, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border
     },
-    productImageContainer: { width: 100, height: 100, borderRadius: 20, backgroundColor: '#f3f4f6', overflow: 'hidden' },
+    productImageContainer: { width: 100, height: 100, borderRadius: 20, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', overflow: 'hidden' },
     productImage: { width: '100%', height: '100%', resizeMode: 'cover' },
     productImagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     discountBadge: { position: 'absolute', top: 0, left: 0, backgroundColor: '#ef4444', paddingHorizontal: 6, paddingVertical: 2, borderBottomRightRadius: 8 },
-    discountText: { color: '#fff', fontSize: 10, fontFamily: 'Outfit_400Regular', fontFamily: 'Outfit_700Bold' },
+    discountText: { color: '#fff', fontSize: 10, fontFamily: 'Outfit_700Bold' },
 
     productInfo: { flex: 1, justifyContent: 'space-between' },
-    productName: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: '#111827', marginBottom: 4 },
-    productDesc: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: '#6b7280', lineHeight: 16 },
+    productName: { fontSize: 16, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 4 },
+    productDesc: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: colors.textDim, lineHeight: 16 },
 
-    priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', mt: 8 },
-    originalPrice: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: '#9ca3af', textDecorationLine: 'line-through' },
-    effectivePrice: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: '#111827' },
+    priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 8 },
+    originalPrice: { fontSize: 12, fontFamily: 'Outfit_400Regular', color: colors.textDim, textDecorationLine: 'line-through' },
+    effectivePrice: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
 
-    addButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#ecfdf5', borderWidth: 1, borderColor: '#a7f3d0', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
-    addButtonText: { color: '#047857', fontFamily: 'Outfit_700Bold', fontSize: 14 },
-    outOfStockBadge: { backgroundColor: '#fee2e2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-    outOfStockText: { color: '#ef4444', fontSize: 10, fontFamily: 'Outfit_400Regular', fontFamily: 'Outfit_700Bold' },
+    addButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: isDarkMode ? 'rgba(5,150,105,0.15)' : '#ecfdf5', borderWidth: 1, borderColor: isDarkMode ? '#065f46' : '#a7f3d0', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+    addButtonText: { color: isDarkMode ? '#34d399' : '#047857', fontFamily: 'Outfit_700Bold', fontSize: 14 },
+    outOfStockBadge: { backgroundColor: isDarkMode ? 'rgba(239,68,68,0.15)' : '#fee2e2', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    outOfStockText: { color: isDarkMode ? '#f87171' : '#ef4444', fontSize: 10, fontFamily: 'Outfit_700Bold' },
 
-    emptyState: { alignItems: 'center', paddingVertical: 40 },
-    emptyText: { color: '#6b7280', marginTop: 12, fontSize: 16 },
+    emptyState: { alignItems: 'center', paddingVertical: 40, backgroundColor: colors.surface, borderRadius: 16, padding: 32, borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed' },
+    emptyIconWrapper: { width: 64, height: 64, borderRadius: 32, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+    emptyTitle: { fontSize: 18, fontFamily: 'Outfit_700Bold', color: colors.text },
+    emptyText: { color: colors.textDim, marginTop: 4, fontSize: 14 },
 
     floatingCartContainer: { position: 'absolute', bottom: 30, left: 16, right: 16, zIndex: 20, alignItems: 'center' },
     floatingCartButton: {
-        flexDirection: 'row', backgroundColor: '#047857', paddingVertical: 14, paddingHorizontal: 24,
+        flexDirection: 'row', backgroundColor: colors.primary, paddingVertical: 14, paddingHorizontal: 24,
         borderRadius: 30, alignItems: 'center', justifyContent: 'space-between', gap: 16,
         elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8
     },
     cartBadge: { backgroundColor: '#fff', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 20 },
-    cartBadgeText: { color: '#047857', fontFamily: 'Outfit_700Bold', fontSize: 14 },
+    cartBadgeText: { color: colors.primary, fontFamily: 'Outfit_700Bold', fontSize: 14 },
     cartTextInfo: { flex: 1 },
     viewCartText: { color: '#fff', fontFamily: 'Outfit_700Bold', fontSize: 14 },
     cartTotalText: { color: '#d1fae5', fontSize: 12, fontFamily: 'Outfit_600SemiBold', marginTop: 2 }

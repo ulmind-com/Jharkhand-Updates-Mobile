@@ -38,7 +38,7 @@ export default function MoreScreen() {
                         <View style={[styles.iconBox, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#ecfdf5' }]}>
                             <Ionicons name="megaphone" size={24} color={isDarkMode ? '#34d399' : '#059669'} />
                         </View>
-                        <Text style={styles.menuText}>Promotions</Text>
+                        <Text style={styles.menuText}>Local Market</Text>
                         <Ionicons name="chevron-forward" size={20} color={colors.textDim} />
                     </TouchableOpacity>
 
@@ -134,8 +134,8 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     menuContainer: {
         backgroundColor: colors.surface,
         borderRadius: 20,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 4,
         elevation: 3,
         shadowColor: colors.shadow,
         shadowOpacity: isDarkMode ? 0.3 : 0.05,
@@ -147,17 +147,17 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     menuItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 18,
+        paddingVertical: 14,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
     },
     iconBox: {
-        width: 48,
-        height: 48,
-        borderRadius: 14,
+        width: 42,
+        height: 42,
+        borderRadius: 12,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 16,
+        marginRight: 14,
     },
     menuText: {
         flex: 1,

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Dimensions, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -91,6 +91,47 @@ const CricketScorecardSkeleton = ({ isDarkMode, colors }) => {
             ))}
         </View>
     );
+};
+
+const getTeamColor = (name, isDarkMode) => {
+    const n = name.toLowerCase();
+
+    // International
+    if (n.includes('india')) return '#2563eb';
+    if (n.includes('australia')) return '#eab308';
+    if (n.includes('south africa')) return '#84cc16';
+    if (n.includes('west indies')) return '#78350f';
+    if (n.includes('sri lanka') || n.includes('sl')) return '#38bdf8';
+    if (n.includes('pakistan')) return '#15803d';
+    if (n.includes('bangladesh')) return '#16a34a';
+    if (n.includes('england')) return '#dc2626';
+    if (n.includes('new zealand') || n.includes('nz')) return isDarkMode ? '#404040' : '#000000';
+    if (n.includes('afghanistan')) return '#0284c7';
+    if (n.includes('zimbabwe')) return '#dc2626';
+    if (n.includes('ireland')) return '#16a34a';
+
+    // IPL & SA20 & domestic
+    if (n.includes('chennai') || n.includes('csk') || n.includes('super kings')) return '#eab308';
+    if (n.includes('mumbai') || n.includes('mi ') || n.includes('cape town')) return '#0284c7';
+    if (n.includes('royal challengers') || n.includes('rcb') || n.includes('bengaluru')) return '#dc2626';
+    if (n.includes('kolkata') || n.includes('kkr')) return '#6b21a8';
+    if (n.includes('rajasthan') || n.includes('rr ') || n.includes('royals')) return '#db2777';
+    if (n.includes('sunrisers') || n.includes('srh')) return '#f97316';
+    if (n.includes('delhi') || n.includes('dc ') || n.includes('capitals')) return '#2563eb';
+    if (n.includes('punjab') || n.includes('pbks') || n.includes('kings')) return '#ef4444';
+    if (n.includes('lucknow') || n.includes('lsg') || n.includes('super giants')) return '#0d9488';
+    if (n.includes('gujarat') || n.includes('gt ') || n.includes('titans')) return '#1e3a8a';
+
+    // BBL
+    if (n.includes('sixers')) return '#d946ef';
+    if (n.includes('scorchers')) return '#f97316';
+    if (n.includes('renegades') || n.includes('heat')) return '#dc2626';
+    if (n.includes('hurricanes')) return '#9333ea';
+    if (n.includes('stars')) return '#16a34a';
+    if (n.includes('strikers')) return '#2563eb';
+    if (n.includes('thunder')) return '#a3e635';
+
+    return '#059669'; // Default Green
 };
 
 export default function CricketScorecardScreen() {
@@ -242,24 +283,83 @@ export default function CricketScorecardScreen() {
                     <ScrollView horizontal showsHorizontalScrollIndicator={false}
                         style={sm.inningsTabs}
                         contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
-                        {innings.map((inn, idx) => {
-                            const sc = data.score ? data.score.find(s => (s.inning || '').toLowerCase().replace(/ inning \d/i, '') === (inn.inning || '').toLowerCase().replace(/ inning \d/i, '')) : null;
-                            const runsSummary = sc ? `${sc.r}/${sc.w}` : '';
-                            return (
-                                <TouchableOpacity key={idx}
-                                    style={[sm.innTab, activeInnings === idx && sm.innTabActive]}
-                                    onPress={() => {
-                                        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                        setActiveInnings(idx);
-                                        setActiveTab('batting');
-                                    }}>
-                                    <Text style={[sm.innTabTxt, activeInnings === idx && sm.innTabTxtActive]}>
-                                        {(inn.inning || `Innings ${idx + 1}`).replace(/ Inning \d/i, '').replace(/ inning \d/i, '')}
-                                    </Text>
-                                    {runsSummary ? <Text style={[sm.innOvers, activeInnings === idx && sm.innOversActive]}>{runsSummary}</Text> : null}
-                                </TouchableOpacity>
-                            );
-                        })}
+                        {(() => {
+                            // Safely extract the two competing teams from the matchTitle
+                            // Titles usually look like "Zimbabwe vs South Africa, 51st Match..."
+                            let competingTeams = [];
+                            if (matchTitle) {
+                                const titlePart = matchTitle.split(',')[0]; // "Zimbabwe vs South Africa"
+                                if (titlePart.includes(' vs ')) {
+                                    competingTeams = titlePart.split(' vs ').map(t => t.trim());
+                                } else if (titlePart.includes(' v ')) {
+                                    competingTeams = titlePart.split(' v ').map(t => t.trim());
+                                }
+                            }
+
+                            // Fallback team formats if parsing title fails
+                            const fallbackTeams = ['Team 1', 'Team 2'];
+
+                            // Process Inning Names
+                            const rawNames = innings.map(inn => (inn.inning || '').replace(/ Inning \d/i, '').replace(/ inning \d/i, '').trim());
+
+                            let assignedTeams = [];
+                            const fixedNames = rawNames.map((rawName, idx) => {
+                                let chosenTeam = null;
+
+                                if (competingTeams.length >= 2) {
+                                    const mentioned = competingTeams.filter(t => rawName.toLowerCase().includes(t.toLowerCase()));
+
+                                    if (mentioned.length === 1) {
+                                        chosenTeam = mentioned[0];
+                                    } else if (mentioned.length > 1) {
+                                        const unassigned = mentioned.find(t => !assignedTeams.includes(t));
+                                        chosenTeam = unassigned || mentioned[0];
+                                    } else {
+                                        const unassigned = competingTeams.find(t => !assignedTeams.includes(t));
+                                        chosenTeam = unassigned || competingTeams[idx % competingTeams.length];
+                                    }
+                                } else {
+                                    if (rawName.includes(',')) {
+                                        const parts = rawName.split(',').map(n => n.trim());
+                                        const unassigned = parts.find(p => !assignedTeams.includes(p));
+                                        chosenTeam = unassigned || parts[idx % parts.length];
+                                    } else {
+                                        chosenTeam = rawName;
+                                    }
+                                }
+
+                                if (!chosenTeam) chosenTeam = fallbackTeams[idx % 2];
+
+                                assignedTeams.push(chosenTeam);
+
+                                // Return Capitalized String
+                                return chosenTeam.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+                            });
+
+                            return innings.map((inn, idx) => {
+                                const sc = data.score ? data.score.find(s => (s.inning || '').toLowerCase().replace(/ inning \d/i, '') === (inn.inning || '').toLowerCase().replace(/ inning \d/i, '')) : null;
+                                const runsSummary = sc ? `${sc.r}/${sc.w}` : '';
+
+                                const teamName = fixedNames[idx];
+                                const isActive = activeInnings === idx;
+                                const tColor = getTeamColor(teamName, isDarkMode);
+
+                                return (
+                                    <TouchableOpacity key={idx}
+                                        style={[sm.innTab, isActive && { backgroundColor: tColor, borderColor: tColor }]}
+                                        onPress={() => {
+                                            if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                            setActiveInnings(idx);
+                                            setActiveTab('batting');
+                                        }}>
+                                        <Text style={[sm.innTabTxt, isActive && sm.innTabTxtActive]}>
+                                            {teamName}
+                                        </Text>
+                                        {runsSummary ? <Text style={[sm.innOvers, isActive && sm.innOversActive]}>{runsSummary}</Text> : null}
+                                    </TouchableOpacity>
+                                );
+                            });
+                        })()}
                     </ScrollView>
 
                     {/* Bat/Bowl Tabs */}

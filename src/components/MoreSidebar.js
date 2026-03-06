@@ -43,7 +43,7 @@ export default function MoreSidebar({ visible, onClose }) {
                             <View style={[styles.iconBox, { backgroundColor: '#ecfdf5' }]}>
                                 <Ionicons name="megaphone" size={20} color="#059669" />
                             </View>
-                            <Text style={styles.menuText}>Promotions</Text>
+                            <Text style={styles.menuText}>Local Market</Text>
                             <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
                         </TouchableOpacity>
 
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
         paddingBottom: 20,
     },
     headerTitle: {
-        fontSize: 22, fontFamily: 'Outfit_400Regular', 
+        fontSize: 22, fontFamily: 'Outfit_400Regular',
         color: '#111827',
     },
     closeButton: {
@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
     },
     menuText: {
         flex: 1,
-        fontSize: 18, fontFamily: 'Outfit_400Regular', 
+        fontSize: 18, fontFamily: 'Outfit_400Regular',
         color: '#374151',
     }
 });

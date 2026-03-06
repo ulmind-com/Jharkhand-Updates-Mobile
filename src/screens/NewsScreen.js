@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Platform } from 'react-native';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { View as MotiView } from 'moti';
 import { NewsSkeleton } from '../components/Skeletons';
@@ -439,6 +439,45 @@ export default function NewsScreen() {
                     }
                 />
             )}
+
+            {/* Floating AI Chat Bot */}
+            <View style={styles.aiButtonContainer}>
+                <MotiView
+                    from={{ opacity: 0, scale: 0.8, translateY: 10 }}
+                    animate={{ opacity: 1, scale: 1, translateY: 0 }}
+                    transition={{
+                        type: 'spring',
+                        damping: 10,
+                        stiffness: 100,
+                        delay: 500
+                    }}
+                    style={styles.aiTooltipContainer}
+                    pointerEvents="none"
+                >
+                    <View style={styles.aiTooltip}>
+                        <Text style={styles.aiTooltipText}>Need to know</Text>
+                        <Text style={[styles.aiTooltipText, { color: '#fbbf24', fontWeight: 'bold' }]}>Aaj ki taja khabar?</Text>
+                        <View style={styles.aiTooltipArrow} />
+                    </View>
+                </MotiView>
+                <TouchableOpacity
+                    style={styles.aiButton}
+                    activeOpacity={0.8}
+                    onPress={() => navigation.navigate('AiChat')}
+                >
+                    <MotiView
+                        from={{ scale: 1 }}
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{
+                            type: 'timing',
+                            duration: 2000,
+                            loop: true
+                        }}
+                    >
+                        <MaterialCommunityIcons name="robot-outline" size={28} color="#ffffff" />
+                    </MotiView>
+                </TouchableOpacity>
+            </View>
         </SafeAreaView>
     );
 }
@@ -465,4 +504,60 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     dateText: { color: '#d1d5db', fontSize: 12, fontFamily: 'Outfit_400Regular', marginLeft: 6 },
     emptyContainer: { alignItems: 'center', marginTop: 80 },
     emptyText: { color: colors.textDim, fontSize: 18, fontFamily: 'Outfit_600SemiBold', marginTop: 16 },
+    aiButtonContainer: {
+        position: 'absolute',
+        bottom: Platform.OS === 'ios' ? 130 : 110,
+        right: 20,
+        alignItems: 'center',
+        zIndex: 999,
+    },
+    aiButton: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#10b981', // Emerald green
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        borderWidth: 2,
+        borderColor: '#34d399',
+    },
+    aiTooltipContainer: {
+        position: 'absolute',
+        bottom: 65, // Position above the button
+        right: 0,   // Align slightly to have arrow point at button
+        alignItems: 'flex-end',
+        width: 140,
+    },
+    aiTooltip: {
+        backgroundColor: 'rgba(15, 23, 42, 0.9)', // Dark slate background
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    aiTooltipText: {
+        color: '#ffffff',
+        fontSize: 11,
+        fontFamily: 'Outfit_500Medium',
+        textAlign: 'center',
+    },
+    aiTooltipArrow: {
+        position: 'absolute',
+        bottom: -6,
+        right: 22, // Align with the button center
+        width: 0,
+        height: 0,
+        borderLeftWidth: 6,
+        borderRightWidth: 6,
+        borderTopWidth: 6,
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+        borderTopColor: 'rgba(15, 23, 42, 0.9)',
+    }
 });

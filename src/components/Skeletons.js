@@ -10,7 +10,7 @@ export const PostSkeleton = () => {
     const styles = getStyles(colors, isDarkMode);
     return (
         <View style={styles.card}>
-            <ContentLoader speed={1} width={width - 32} height={250} viewBox={`0 0 ${width - 32} 250`} backgroundColor={isDarkMode ? colors.surfaceDeeper : "#f3f4f6"} foregroundColor={isDarkMode ? colors.border : "#e5e7eb"}>
+            <ContentLoader speed={1} width={width - 56} height={250} viewBox={`0 0 ${width - 56} 250`} backgroundColor={isDarkMode ? colors.surfaceDeeper : "#f3f4f6"} foregroundColor={isDarkMode ? colors.border : "#e5e7eb"}>
                 <Circle cx="20" cy="20" r="20" />
                 <Rect x="50" y="8" rx="4" ry="4" width="120" height="10" />
                 <Rect x="50" y="26" rx="4" ry="4" width="80" height="8" />
@@ -28,8 +28,23 @@ export const NewsSkeleton = () => {
     const styles = getStyles(colors, isDarkMode);
     return (
         <View style={styles.newsCard}>
-            <ContentLoader speed={1} width={width - 32} height={300} viewBox={`0 0 ${width - 32} 300`} backgroundColor={isDarkMode ? colors.surfaceDeeper : "#f3f4f6"} foregroundColor={isDarkMode ? colors.border : "#e5e7eb"}>
-                <Rect x="0" y="0" rx="15" ry="15" width="100%" height="300" />
+            <ContentLoader speed={1} width={width - 32} height={380} viewBox={`0 0 ${width - 32} 380`} backgroundColor={isDarkMode ? colors.surfaceDeeper : "#f3f4f6"} foregroundColor={isDarkMode ? colors.border : "#e5e7eb"}>
+                {/* Image placeholder */}
+                <Rect x="0" y="0" width="100%" height="200" />
+
+                {/* Title placeholder */}
+                <Rect x="16" y="216" rx="4" ry="4" width="80%" height="16" />
+                <Rect x="16" y="240" rx="4" ry="4" width="60%" height="16" />
+
+                {/* Author meta row */}
+                <Circle cx="28" cy="286" r="12" />
+                <Rect x="48" y="280" rx="4" ry="4" width="120" height="12" />
+
+                {/* Comments section */}
+                <Rect x="16" y="320" rx="4" ry="4" width="100%" height="2" />
+                <Circle cx="30" cy="345" r="14" />
+                <Rect x="54" y="336" rx="4" ry="4" width="150" height="10" />
+                <Rect x="54" y="352" rx="4" ry="4" width="80%" height="10" />
             </ContentLoader>
         </View>
     );
@@ -165,7 +180,7 @@ export const ProfileSkeleton = () => {
 
 const getStyles = (colors, isDarkMode) => StyleSheet.create({
     card: { backgroundColor: colors.surface, borderRadius: 20, padding: 16, marginBottom: 16, elevation: 2, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 2 }, shadowOpacity: isDarkMode ? 0.3 : 0.1, shadowRadius: 4, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
-    newsCard: { backgroundColor: colors.surface, borderRadius: 20, marginBottom: 20, overflow: 'hidden', elevation: 6, height: 300, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
+    newsCard: { backgroundColor: colors.surface, borderRadius: 20, marginBottom: 20, overflow: 'hidden', elevation: 6, paddingBottom: 16, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
     jobCard: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, marginBottom: 16, elevation: 3, borderWidth: 1, borderColor: colors.border },
     eventCard: { backgroundColor: colors.surface, borderRadius: 20, marginBottom: 20, overflow: 'hidden', elevation: 4, paddingBottom: 20, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
     detailCard: { backgroundColor: colors.surface, flex: 1, width: '100%' },

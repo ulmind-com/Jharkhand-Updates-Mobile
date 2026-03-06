@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import { View, Text, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import * as SecureStore from 'expo-secure-store';
 import * as Location from 'expo-location';
 import axios from 'axios';
@@ -14,8 +14,8 @@ let cachedWeather = null;
 let cachedForecast = null;
 let lastFetchTime = 0;
 
-
 export default function WeatherWidget() {
+    const navigation = useNavigation();
     const [userName, setUserName] = useState('User');
     const [weather, setWeather] = useState(null);
     const [forecast, setForecast] = useState([]);
@@ -36,41 +36,45 @@ export default function WeatherWidget() {
         return () => clearInterval(timer);
     }, []);
 
-    useFocusEffect(
-        useCallback(() => {
-            const fetchUser = async () => {
-                try {
-                    let name = Platform.OS === 'web' ? localStorage.getItem('userName') : await SecureStore.getItemAsync('userName');
-                    let token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                let name = Platform.OS === 'web' ? localStorage.getItem('userName') : await SecureStore.getItemAsync('userName');
+                let token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
 
-                    // If no name is cached but we have a token, fetch it from the backend
-                    if (!name && token) {
-                        const res = await axios.get('https://api.jharkhandbiharupdates.com/api/v1/user/profile', {
-                            headers: { Authorization: `Bearer ${token}` }
-                        });
-                        if (res.data?.data?.fullName) {
-                            name = res.data.data.fullName;
-                            // Cache it for next time
-                            if (Platform.OS === 'web') {
-                                localStorage.setItem('userName', name);
-                            } else {
-                                await SecureStore.setItemAsync('userName', name);
-                            }
+                // If no name is cached but we have a token, fetch it from the backend
+                if (!name && token) {
+                    const res = await axios.get('https://api.jharkhandbiharupdates.com/api/v1/user/profile', {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.data?.data?.fullName) {
+                        name = res.data.data.fullName;
+                        // Cache it for next time
+                        if (Platform.OS === 'web') {
+                            localStorage.setItem('userName', name);
+                        } else {
+                            await SecureStore.setItemAsync('userName', name);
                         }
                     }
-
-                    if (name) {
-                        setUserName(name.split(' ')[0]);
-                    } else {
-                        setUserName('User'); // Fallback if logged out
-                    }
-                } catch (e) {
-                    console.log("Error fetching user name for widget:", e);
                 }
-            };
-            fetchUser();
-        }, [])
-    );
+
+                if (name) {
+                    setUserName(name.split(' ')[0]);
+                } else {
+                    setUserName('User'); // Fallback if logged out
+                }
+            } catch (e) {
+                console.log("Error fetching user name for widget:", e);
+            }
+        };
+
+        // Run on mount
+        fetchUser();
+
+        // Also run every time the screen comes into focus
+        const unsubscribe = navigation.addListener('focus', fetchUser);
+        return unsubscribe;
+    }, [navigation]);
 
     useEffect(() => {
         const fetchWeather = async () => {
@@ -206,8 +210,8 @@ export default function WeatherWidget() {
             >
                 <View style={styles.headerRow}>
                     <View style={{ flex: 1, paddingRight: 15 }}>
-                        <Text style={styles.greeting}>Hello {userName}!</Text>
-                        <Text style={styles.subtext}>Fetching local weather...</Text>
+                        <Text style={styles.greeting} numberOfLines={1}>Hello {userName}!</Text>
+                        <Text style={styles.subtext} numberOfLines={2}>Fetching local weather...</Text>
                     </View>
                     <View style={styles.weatherPill}>
                         <ActivityIndicator size="small" color="#ffffff" />
@@ -227,8 +231,8 @@ export default function WeatherWidget() {
             >
                 <View style={styles.headerRow}>
                     <View style={{ flex: 1, paddingRight: 15 }}>
-                        <Text style={styles.greeting}>Hello {userName}!</Text>
-                        <Text style={styles.subtext}>Welcome to Jharkhand Updates</Text>
+                        <Text style={styles.greeting} numberOfLines={1}>Hello {userName}!</Text>
+                        <Text style={styles.subtext} numberOfLines={2}>Welcome to Jharkhand Updates</Text>
                     </View>
                     <View style={styles.weatherPill}>
                         <Ionicons name="time-outline" size={24} color="#f3f4f6" style={styles.cloudIcon} />
@@ -251,8 +255,8 @@ export default function WeatherWidget() {
         >
             <View style={styles.headerRow}>
                 <View style={{ flex: 1, paddingRight: 15 }}>
-                    <Text style={styles.greeting}>Hello {userName}!</Text>
-                    <Text style={styles.subtext}>Looks like a {weather?.condition?.toLowerCase() || 'cloudy'} one today</Text>
+                    <Text style={styles.greeting} numberOfLines={1}>Hello {userName}!</Text>
+                    <Text style={styles.subtext} numberOfLines={2}>Looks like a {weather?.condition?.toLowerCase() || 'cloudy'} one today</Text>
                 </View>
 
                 <View style={styles.weatherPill}>
@@ -301,6 +305,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 10, // Tighter
         paddingHorizontal: 16,
+        flexShrink: 0,
     },
     lottieIcon: {
         width: 52,
