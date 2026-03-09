@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Alert, KeyboardAvoidingView, Vibration, Share } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, TextInput, Platform, Alert, KeyboardAvoidingView, Vibration, Share, FlatList } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -201,6 +201,8 @@ export default function CommunityPostDetailsScreen() {
     const [currentUser, setCurrentUser] = useState(null);
     const [imageRatio, setImageRatio] = useState(null);
     const [isImageViewVisible, setIsImageViewVisible] = useState(false);
+    const [currentImage, setCurrentImage] = useState(0);
+    const postCarouselRef = useRef(null);
     const [processingAdmin, setProcessingAdmin] = useState(false);
 
     useEffect(() => {
@@ -385,7 +387,7 @@ export default function CommunityPostDetailsScreen() {
 
     const handleShare = async () => {
         try {
-            const webUrl = `https://jharkhandupdates.com/citizen-news/details/${post.id || post._id}`;
+            const webUrl = `https://jharkhandupdates.com/citizen-news/${post.id || post._id}`;
             const title = post.title || 'Community Post';
             const snippet = (post.content || '').trim().slice(0, 100);
             await Share.share({
@@ -451,13 +453,54 @@ export default function CommunityPostDetailsScreen() {
                         {post.title ? <Text style={styles.postTitle}>{post.title}</Text> : null}
 
                         {post.imageUrls && post.imageUrls.length > 0 && (
-                            <TouchableOpacity activeOpacity={0.9} onPress={() => setIsImageViewVisible(true)}>
-                                <Image
-                                    source={{ uri: post.imageUrls[0] }}
-                                    style={[styles.postImage, { aspectRatio: imageRatio || 1.5 }]}
-                                    resizeMode="contain"
-                                />
-                            </TouchableOpacity>
+                            <>
+                                {(() => {
+                                    const imgs = post.imageUrls;
+                                    return (
+                                        <FlatList
+                                            data={imgs}
+                                            horizontal
+                                            pagingEnabled
+                                            showsHorizontalScrollIndicator={false}
+                                            scrollEventThrottle={16}
+                                            keyExtractor={(_, idx) => `p-img-${idx}`}
+                                            onScroll={(e) => {
+                                                if (imgs.length <= 1) return;
+                                                const rawIdx = Math.round(e.nativeEvent.contentOffset.x / width);
+                                                if (rawIdx >= 0 && rawIdx < imgs.length && rawIdx !== currentImage) {
+                                                    setCurrentImage(rawIdx);
+                                                }
+                                            }}
+                                            renderItem={({ item: uri, index }) => (
+                                                <TouchableOpacity
+                                                    activeOpacity={0.9}
+                                                    onPress={() => { setCurrentImage(index); setIsImageViewVisible(true); }}
+                                                    style={{ width }}
+                                                >
+                                                    <Image
+                                                        source={{ uri }}
+                                                        style={[styles.postImage, { aspectRatio: imageRatio || 1.5, width }]}
+                                                        resizeMode="contain"
+                                                    />
+                                                </TouchableOpacity>
+                                            )}
+                                        />
+                                    );
+                                })()}
+                                {post.imageUrls.length > 1 && (
+                                    <View style={styles.dotRow}>
+                                        {post.imageUrls.map((_, idx) => (
+                                            <View
+                                                key={idx}
+                                                style={[
+                                                    styles.dotIndicator,
+                                                    idx === currentImage && styles.dotIndicatorActive,
+                                                ]}
+                                            />
+                                        ))}
+                                    </View>
+                                )}
+                            </>
                         )}
 
                         <LinkedText style={styles.postContent}>{post.content}</LinkedText>
@@ -529,7 +572,7 @@ export default function CommunityPostDetailsScreen() {
 
                 <ImageViewing
                     images={post?.imageUrls ? post.imageUrls.map(uri => ({ uri })) : []}
-                    imageIndex={0}
+                    imageIndex={currentImage}
                     visible={isImageViewVisible}
                     onRequestClose={() => setIsImageViewVisible(false)}
                 />
@@ -559,6 +602,10 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
 
     postTitle: { fontSize: 20, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 12, lineHeight: 28 },
     postImage: { width: width, backgroundColor: 'transparent', alignSelf: 'center', marginBottom: 16 },
+    dotRow: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: -8, marginBottom: 12 },
+    dotIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: isDarkMode ? '#4b5563' : '#d1d5db' },
+    dotIndicatorActive: { backgroundColor: colors.primary, width: 8, height: 8, borderRadius: 4 },
+    multiImageBadge: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: 5 },
     postContent: { fontSize: 16, fontFamily: 'Outfit_400Regular', color: colors.text, lineHeight: 24, textAlign: 'justify' },
 
     commentsSection: { paddingHorizontal: 16, backgroundColor: colors.surface, borderRadius: 20, marginHorizontal: 16, paddingVertical: 20, elevation: 1, shadowColor: colors.shadow, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 2, marginBottom: 20, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },

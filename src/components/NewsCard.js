@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     View, Text, Image, TouchableOpacity, StyleSheet,
-    TextInput, Platform, Dimensions, ActivityIndicator,
+    TextInput, Platform, Dimensions, ActivityIndicator, FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { View as MotiView } from 'moti';
@@ -77,9 +77,11 @@ export default function NewsCard({ item, navigation, colors, isDarkMode }) {
         ? `${item.author.firstName} ${item.author.lastName}`.trim()
         : 'Jharkhand Updates';
     const timeAgo = formatTimeAgo(item.createdAt);
-    const location = item.state || item.location || '';
+    const location = item.stateName || item.state || item.location || '';
+    const allImages = (item.imageUrls || []).filter(url => !url?.match(/\.(mp4|webm|ogg)$/i) && !url?.includes('video'));
     const isVideo = item.imageUrls?.[0]?.match(/\.(mp4|webm|ogg)$/i) || item.imageUrls?.[0]?.includes('video');
-    const imageUri = !isVideo && item.imageUrls?.length > 0 ? item.imageUrls[0] : null;
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const imageCardWidth = SCREEN_W - 32; // card padding
 
     useEffect(() => {
         // Load token + profile image
@@ -153,6 +155,23 @@ export default function NewsCard({ item, navigation, colors, isDarkMode }) {
             setSubmitting(false);
         }
     };
+    // Pre-calculate image aspect ratios so container height can animate
+    const [aspectRatios, setAspectRatios] = useState({});
+    useEffect(() => {
+        let mounted = true;
+        allImages.forEach((uri, index) => {
+            if (!uri) return;
+            Image.getSize(uri, (w, h) => {
+                if (mounted && w && h) {
+                    setAspectRatios(prev => ({ ...prev, [index]: w / h }));
+                }
+            }, () => { });
+        });
+        return () => { mounted = false; };
+    }, [allImages]);
+
+    const currentAspectRatio = aspectRatios[currentImageIndex] || aspectRatios[0] || (4 / 3);
+    const currentImageHeight = imageCardWidth / currentAspectRatio;
 
     return (
         <MotiView
@@ -161,27 +180,77 @@ export default function NewsCard({ item, navigation, colors, isDarkMode }) {
             animate={{ opacity: 1, translateY: 0 }}
             transition={{ type: 'timing', duration: 380 }}
         >
-            {/* ── Image ─────────────────────────────────────────── */}
-            <TouchableOpacity
-                activeOpacity={0.95}
-                onPress={() => navigation.navigate('StateNewsDetails', { newsId: item.id })}
+            {/* ── Image Carousel (swipe) ──────────────────── */}
+            <MotiView
+                style={[styles.imageWrapper, { overflow: 'hidden' }]}
+                animate={{ height: allImages.length > 0 ? currentImageHeight : 210 }}
+                transition={{ type: 'timing', duration: 300 }}
             >
-                <View style={styles.imageWrapper}>
-                    {imageUri ? (
-                        <Image
-                            source={{ uri: imageUri }}
-                            style={styles.image}
-                            resizeMode="cover"
+                {allImages.length > 0 ? (
+                    <>
+                        <FlatList
+                            data={allImages}
+                            horizontal
+                            pagingEnabled
+                            showsHorizontalScrollIndicator={false}
+                            scrollEventThrottle={16}
+                            nestedScrollEnabled={true}
+                            keyExtractor={(_, idx) => `nc-${item.id}-${idx}`}
+                            onScroll={(e) => {
+                                const idx = Math.round(e.nativeEvent.contentOffset.x / imageCardWidth);
+                                if (idx >= 0 && idx < allImages.length && idx !== currentImageIndex) {
+                                    setCurrentImageIndex(idx);
+                                }
+                            }}
+                            renderItem={({ item: uri, index }) => {
+                                const itemRatio = aspectRatios[index] || currentAspectRatio;
+                                return (
+                                    <TouchableOpacity
+                                        activeOpacity={0.95}
+                                        onPress={() => navigation.navigate('StateNewsDetails', { newsId: item.id })}
+                                        style={{ width: imageCardWidth, height: imageCardWidth / itemRatio, justifyContent: 'center' }}
+                                    >
+                                        <Image
+                                            source={{ uri }}
+                                            style={{ width: imageCardWidth, height: imageCardWidth / itemRatio }}
+                                            resizeMode="contain"
+                                        />
+                                    </TouchableOpacity>
+                                );
+                            }}
                         />
-                    ) : (
-                        <View style={styles.imagePlaceholder}>
-                            <Ionicons name={isVideo ? 'play-circle' : 'newspaper'} size={48} color="#9ca3af" />
-                        </View>
-                    )}
-
-
-                </View>
-            </TouchableOpacity>
+                        {/* Multi-image badge top-right */}
+                        {allImages.length > 1 && (
+                            <View style={styles.multiImageBadge} pointerEvents="none">
+                                <Ionicons name="copy-outline" size={13} color="#fff" />
+                                <Text style={styles.multiImageCount}>{currentImageIndex + 1}/{allImages.length}</Text>
+                            </View>
+                        )}
+                        {/* Dot indicators bottom */}
+                        {allImages.length > 1 && (
+                            <View style={styles.dotRow} pointerEvents="none">
+                                {allImages.map((_, idx) => (
+                                    <View
+                                        key={idx}
+                                        style={[
+                                            styles.dot,
+                                            idx === currentImageIndex && styles.dotActive,
+                                        ]}
+                                    />
+                                ))}
+                            </View>
+                        )}
+                    </>
+                ) : (
+                    <TouchableOpacity
+                        activeOpacity={0.95}
+                        onPress={() => navigation.navigate('StateNewsDetails', { newsId: item.id })}
+                        style={styles.imagePlaceholder}
+                    >
+                        <Ionicons name={isVideo ? 'play-circle' : 'newspaper'} size={48} color="#9ca3af" />
+                    </TouchableOpacity>
+                )}
+            </MotiView>
 
             {/* ── Content ───────────────────────────────────────── */}
             <View style={styles.content}>
@@ -289,7 +358,6 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
         backgroundColor: colors.surface,
         borderRadius: 20,
         marginBottom: 20,
-        overflow: 'hidden',
         elevation: 3,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -303,12 +371,38 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
         height: 210,
         position: 'relative',
         backgroundColor: colors.surfaceDeeper,
+        overflow: 'hidden',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
     },
-    image: { width: '100%', height: '100%' },
     imagePlaceholder: {
         width: '100%', height: '100%',
         alignItems: 'center', justifyContent: 'center',
         backgroundColor: colors.surfaceDeeper,
+    },
+    dotRow: {
+        position: 'absolute', bottom: 10,
+        left: 0, right: 0,
+        flexDirection: 'row', justifyContent: 'center',
+        gap: 5,
+        zIndex: 20,
+    },
+    dot: {
+        width: 6, height: 6, borderRadius: 3,
+        backgroundColor: 'rgba(255,255,255,0.5)',
+    },
+    dotActive: {
+        backgroundColor: '#fff', width: 8, height: 8, borderRadius: 4,
+    },
+    multiImageBadge: {
+        position: 'absolute', top: 8, right: 8,
+        backgroundColor: 'rgba(0,0,0,0.60)', borderRadius: 20,
+        paddingHorizontal: 8, paddingVertical: 4,
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        zIndex: 20,
+    },
+    multiImageCount: {
+        color: '#fff', fontSize: 11, fontFamily: 'Outfit_600SemiBold',
     },
     commentBadge: {
         position: 'absolute',

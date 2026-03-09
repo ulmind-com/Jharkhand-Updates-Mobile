@@ -39,6 +39,225 @@ const AutoSizedImage = ({ uri, style }) => {
     );
 };
 
+// ─── Community Post Card with Image Carousel ──────────────────────────────────
+function CommunityPostCard({ item, navigation, colors, isDarkMode, styles,
+    commentsMap, showCommentInput, setShowCommentInput, fetchComments,
+    commentText, setCommentText }) {
+
+    const [currentImg, setCurrentImg] = useState(0);
+    const [aspectRatios, setAspectRatios] = useState({});
+
+    const allImages = item.imageUrls || [];
+    const hasImage = allImages.length > 0;
+    const hasMultiple = allImages.length > 1;
+    const imageWidth = width - 56;
+
+    useEffect(() => {
+        let mounted = true;
+        allImages.forEach((uri, index) => {
+            if (!uri) return;
+            Image.getSize(uri, (w, h) => {
+                if (mounted && w && h) {
+                    setAspectRatios(prev => ({ ...prev, [index]: w / h }));
+                }
+            }, () => { });
+        });
+        return () => { mounted = false; };
+    }, [allImages]);
+
+    const currentAspectRatio = aspectRatios[currentImg] || aspectRatios[0] || (4 / 3);
+    const currentImageHeight = imageWidth / currentAspectRatio;
+
+    const authorName = `${item.author.firstName} ${item.author.lastName}`;
+    const _cd = new Date(item.createdAt);
+    const _ord = (n) => { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
+    const _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const dateStr = `${_ord(_cd.getDate())} ${_months[_cd.getMonth()]} ${_cd.getFullYear()}`;
+
+    return (
+        <MotiView
+            style={styles.card}
+            from={{ opacity: 0, translateY: 20 }}
+            animate={{ opacity: 1, translateY: 0 }}
+            transition={{ type: 'timing', duration: 400 }}
+        >
+            {/* Header — tappable to details */}
+            <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('CommunityPostDetails', { postId: item.id })}>
+                <View style={styles.cardHeader}>
+                    <View style={styles.avatarPlaceholder}>
+                        {item.author.profileImageUrl ? (
+                            <Image source={{ uri: item.author.profileImageUrl }} style={styles.avatarImage} />
+                        ) : (
+                            <Ionicons name="person" size={20} color={colors.textDim} />
+                        )}
+                    </View>
+                    <View style={styles.headerText}>
+                        <Text style={styles.authorName}>{authorName} {item.author.role === 'ADMIN' && <Ionicons name="checkmark-circle" size={14} color="#3b82f6" />}</Text>
+                        <Text style={styles.dateText}>{dateStr}</Text>
+                    </View>
+                </View>
+                {item.title ? <Text style={styles.postTitle}>{item.title}</Text> : null}
+            </TouchableOpacity>
+
+            {/* ── Image Carousel (swipe) ────────────────────── */}
+            {hasImage && (
+                <MotiView
+                    style={{ position: 'relative', marginBottom: 10, overflow: 'hidden', borderRadius: 8, backgroundColor: colors.surfaceDeeper }}
+                    animate={{ height: currentImageHeight }}
+                    transition={{ type: 'timing', duration: 300 }}
+                >
+                    <FlatList
+                        data={allImages}
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        scrollEventThrottle={16}
+                        nestedScrollEnabled={true}
+                        keyExtractor={(_, idx) => `ci-${item.id}-${idx}`}
+                        onScroll={(e) => {
+                            const idx = Math.round(e.nativeEvent.contentOffset.x / imageWidth);
+                            if (idx >= 0 && idx < allImages.length && idx !== currentImg) {
+                                setCurrentImg(idx);
+                            }
+                        }}
+                        renderItem={({ item: uri, index }) => {
+                            const itemRatio = aspectRatios[index] || currentAspectRatio;
+                            return (
+                                <TouchableOpacity
+                                    activeOpacity={0.9}
+                                    onPress={() => navigation.navigate('CommunityPostDetails', { postId: item.id })}
+                                    style={{ width: imageWidth, height: imageWidth / itemRatio, justifyContent: 'center' }}
+                                >
+                                    <Image
+                                        source={{ uri }}
+                                        style={{ width: imageWidth, height: imageWidth / itemRatio }}
+                                        resizeMode="contain"
+                                    />
+                                </TouchableOpacity>
+                            );
+                        }}
+                    />
+
+                    {/* Badge: 1/N */}
+                    {hasMultiple && (
+                        <View style={{
+                            position: 'absolute', top: 8, right: 8,
+                            backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20,
+                            paddingHorizontal: 8, paddingVertical: 3,
+                            flexDirection: 'row', alignItems: 'center', gap: 4, zIndex: 20,
+                        }} pointerEvents="none">
+                            <Ionicons name="copy-outline" size={12} color="#fff" />
+                            <Text style={{ color: '#fff', fontSize: 11, fontFamily: 'Outfit_600SemiBold' }}>
+                                {currentImg + 1}/{allImages.length}
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Dots */}
+                    {hasMultiple && (
+                        <View style={{
+                            position: 'absolute', bottom: 8, left: 0, right: 0,
+                            flexDirection: 'row', justifyContent: 'center', gap: 5, zIndex: 20,
+                        }} pointerEvents="none">
+                            {allImages.map((_, idx) => (
+                                <View key={idx} style={{
+                                    width: idx === currentImg ? 8 : 6,
+                                    height: idx === currentImg ? 8 : 6,
+                                    borderRadius: idx === currentImg ? 4 : 3,
+                                    backgroundColor: idx === currentImg ? '#fff' : 'rgba(255,255,255,0.5)',
+                                }} />
+                            ))}
+                        </View>
+                    )}
+                </MotiView>
+            )}
+
+            {/* Text content — tappable to details */}
+            <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('CommunityPostDetails', { postId: item.id })}>
+                <LinkedText style={styles.postContent} numberOfLines={4}>{item.content}</LinkedText>
+            </TouchableOpacity>
+
+            {/* Actions */}
+            <View style={styles.cardActions}>
+                <TouchableOpacity style={styles.actionButton} onPress={() => {
+                    setShowCommentInput(prev => {
+                        const newState = { ...prev, [item.id]: !prev[item.id] };
+                        if (newState[item.id] && !commentsMap[item.id]) {
+                            fetchComments(item.id);
+                        }
+                        return newState;
+                    });
+                }}>
+                    <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
+                    <Text style={styles.actionText}>Comment</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Inline Comments */}
+            {showCommentInput[item.id] && (
+                <View style={styles.inlineCommentContainer}>
+                    {commentsMap[item.id]?.slice(0, 3).map((comment) => (
+                        <View key={comment.id} style={styles.inlineCommentCard}>
+                            <View style={styles.inlineCommentAvatar}>
+                                {comment.author.profileImageUrl ? (
+                                    <Image source={{ uri: comment.author.profileImageUrl }} style={styles.avatarImage} />
+                                ) : (
+                                    <Text style={{ fontFamily: 'Outfit_700Bold', color: colors.textDim, fontSize: 12, marginTop: 4 }}>
+                                        {comment.author.firstName?.charAt(0) || 'U'}
+                                    </Text>
+                                )}
+                            </View>
+                            <View style={styles.inlineCommentBody}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <Text style={styles.inlineCommentAuthor}>
+                                        {comment.author.firstName} {comment.author.lastName}
+                                    </Text>
+                                    {comment.author.role === 'ADMIN' && <Ionicons name="checkmark-circle" size={12} color="#3b82f6" style={{ marginLeft: 4 }} />}
+                                </View>
+                                <Text style={styles.inlineCommentText}>{comment.content}</Text>
+                            </View>
+                        </View>
+                    ))}
+
+                    <View style={styles.inlineCommentInputContainer}>
+                        <TextInput
+                            style={styles.inlineCommentInputField}
+                            placeholder="Write a comment..."
+                            placeholderTextColor={colors.textDim}
+                            value={commentText[item.id] || ""}
+                            onChangeText={(text) => setCommentText(prev => ({ ...prev, [item.id]: text }))}
+                            multiline
+                        />
+                        <TouchableOpacity
+                            style={[styles.inlineSendButton, !(commentText[item.id] || "").trim() && { opacity: 0.5 }]}
+                            onPress={async () => {
+                                if (Platform.OS !== 'web') {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                }
+                                try {
+                                    const { sound } = await Audio.Sound.createAsync(
+                                        require('../../assets/sounds/pop.mp3'),
+                                        { shouldPlay: true }
+                                    );
+                                    sound.setOnPlaybackStatusUpdate(status => {
+                                        if (status.didJustFinish) sound.unloadAsync();
+                                    });
+                                } catch (e) {
+                                    console.log(e);
+                                }
+                                navigation.navigate('CommunityPostDetails', { postId: item.id });
+                            }}
+                            disabled={!(commentText[item.id] || "").trim()}
+                        >
+                            <Ionicons name="send" size={16} color="#ffffff" />
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+        </MotiView>
+    );
+}
+
 export default function CommunityScreen() {
     const navigation = useNavigation();
     const [posts, setPosts] = useState([]);
@@ -240,127 +459,20 @@ export default function CommunityScreen() {
             );
         }
 
-        const hasImage = item.imageUrls && item.imageUrls.length > 0;
-        const authorName = `${item.author.firstName} ${item.author.lastName}`;
-        const _cd = new Date(item.createdAt);
-        const _ord = (n) => { const s = ['th', 'st', 'nd', 'rd']; const v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
-        const _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        const dateStr = `${_ord(_cd.getDate())} ${_months[_cd.getMonth()]} ${_cd.getFullYear()}`;
-
         return (
-            <MotiView
-                style={styles.card}
-                from={{ opacity: 0, translateY: 20 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{ type: 'timing', duration: 400 }}
-            >
-                <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate('CommunityPostDetails', { postId: item.id })}>
-                    {/* Header */}
-                    <View style={styles.cardHeader}>
-                        <View style={styles.avatarPlaceholder}>
-                            {item.author.profileImageUrl ? (
-                                <Image source={{ uri: item.author.profileImageUrl }} style={styles.avatarImage} />
-                            ) : (
-                                <Ionicons name="person" size={20} color={colors.textDim} />
-                            )}
-                        </View>
-                        <View style={styles.headerText}>
-                            <Text style={styles.authorName}>{authorName} {item.author.role === 'ADMIN' && <Ionicons name="checkmark-circle" size={14} color="#3b82f6" />}</Text>
-                            <Text style={styles.dateText}>{dateStr}</Text>
-                        </View>
-                    </View>
-
-                    {/* Content */}
-                    {item.title ? <Text style={styles.postTitle}>{item.title}</Text> : null}
-
-                    {hasImage && (
-                        <AutoSizedImage
-                            uri={item.imageUrls[0]}
-                            style={styles.postImage}
-                        />
-                    )}
-
-                    <LinkedText style={styles.postContent} numberOfLines={4}>{item.content}</LinkedText>
-                </TouchableOpacity>
-
-                {/* Actions */}
-                <View style={styles.cardActions}>
-                    <TouchableOpacity style={styles.actionButton} onPress={() => {
-                        setShowCommentInput(prev => {
-                            const newState = { ...prev, [item.id]: !prev[item.id] };
-                            if (newState[item.id] && !commentsMap[item.id]) {
-                                fetchComments(item.id);
-                            }
-                            return newState;
-                        });
-                    }}>
-                        <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
-                        <Text style={styles.actionText}>Comment</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Inline Comments */}
-                {showCommentInput[item.id] && (
-                    <View style={styles.inlineCommentContainer}>
-                        {commentsMap[item.id]?.slice(0, 3).map((comment) => (
-                            <View key={comment.id} style={styles.inlineCommentCard}>
-                                <View style={styles.inlineCommentAvatar}>
-                                    {comment.author.profileImageUrl ? (
-                                        <Image source={{ uri: comment.author.profileImageUrl }} style={styles.avatarImage} />
-                                    ) : (
-                                        <Text style={{ fontFamily: 'Outfit_700Bold', color: colors.textDim, fontSize: 12, marginTop: 4 }}>
-                                            {comment.author.firstName?.charAt(0) || 'U'}
-                                        </Text>
-                                    )}
-                                </View>
-                                <View style={styles.inlineCommentBody}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                        <Text style={styles.inlineCommentAuthor}>
-                                            {comment.author.firstName} {comment.author.lastName}
-                                        </Text>
-                                        {comment.author.role === 'ADMIN' && <Ionicons name="checkmark-circle" size={12} color="#3b82f6" style={{ marginLeft: 4 }} />}
-                                    </View>
-                                    <Text style={styles.inlineCommentText}>{comment.content}</Text>
-                                </View>
-                            </View>
-                        ))}
-
-                        <View style={styles.inlineCommentInputContainer}>
-                            <TextInput
-                                style={styles.inlineCommentInputField}
-                                placeholder="Write a comment..."
-                                placeholderTextColor={colors.textDim}
-                                value={commentText[item.id] || ""}
-                                onChangeText={(text) => setCommentText(prev => ({ ...prev, [item.id]: text }))}
-                                multiline
-                            />
-                            <TouchableOpacity
-                                style={[styles.inlineSendButton, !(commentText[item.id] || "").trim() && { opacity: 0.5 }]}
-                                onPress={async () => {
-                                    if (Platform.OS !== 'web') {
-                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                    }
-                                    try {
-                                        const { sound } = await Audio.Sound.createAsync(
-                                            require('../../assets/sounds/pop.mp3'),
-                                            { shouldPlay: true }
-                                        );
-                                        sound.setOnPlaybackStatusUpdate(status => {
-                                            if (status.didJustFinish) sound.unloadAsync();
-                                        });
-                                    } catch (e) {
-                                        console.log(e);
-                                    }
-                                    navigation.navigate('CommunityPostDetails', { postId: item.id });
-                                }}
-                                disabled={!(commentText[item.id] || "").trim()}
-                            >
-                                <Ionicons name="send" size={16} color="#ffffff" />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-            </MotiView>
+            <CommunityPostCard
+                item={item}
+                navigation={navigation}
+                colors={colors}
+                isDarkMode={isDarkMode}
+                styles={styles}
+                commentsMap={commentsMap}
+                showCommentInput={showCommentInput}
+                setShowCommentInput={setShowCommentInput}
+                fetchComments={fetchComments}
+                commentText={commentText}
+                setCommentText={setCommentText}
+            />
         );
     };
 

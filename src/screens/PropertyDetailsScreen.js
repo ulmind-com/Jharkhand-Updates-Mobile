@@ -9,6 +9,7 @@ import Toast from 'react-native-toast-message';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { View as MotiView, AnimatePresence } from 'moti';
 import ImageViewing from '../components/ImageViewer';
+import { WebView } from 'react-native-webview';
 import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
 
@@ -381,17 +382,36 @@ export default function PropertyDetailsScreen() {
                                     <Text style={styles.mapLinkText}>Open in Google Maps</Text>
                                 </TouchableOpacity>
 
-                                <TouchableOpacity
-                                    activeOpacity={0.9}
-                                    onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatAddress())}`)}
-                                    style={styles.mapPlaceholder}
-                                >
-                                    <Image source={{ uri: 'https://maps.googleapis.com/maps/api/staticmap?center=Patna,Bihar&zoom=14&size=600x300&maptype=roadmap&markers=color:red%7CPatna,Bihar&key=MY_FAKED_KEY_OR_USE_STATIC_ASSET' }} style={styles.staticMapImg} />
-                                    <View style={styles.mapOverlay}>
-                                        <Ionicons name="map-outline" size={40} color="#fff" />
-                                        <Text style={styles.mapPlaceholderText}>Tap to View Live Map</Text>
+                                {Platform.OS !== 'web' ? (
+                                    <View style={styles.mapContainer}>
+                                        <WebView
+                                            originWhitelist={['*']}
+                                            source={{
+                                                html: `
+                                                <html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{margin:0;padding:0;}iframe{width:100%;height:100%;border:0;}</style></head>
+                                                <body><iframe src="${property.latitude && property.longitude
+                                                        ? `https://maps.google.com/maps?q=${property.latitude},${property.longitude}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+                                                        : `https://maps.google.com/maps?q=${encodeURIComponent(formatAddress())}&t=&z=15&ie=UTF8&iwloc=&output=embed`
+                                                    }" allowfullscreen></iframe></body></html>
+                                            ` }}
+                                            style={{ flex: 1 }}
+                                            scrollEnabled={false}
+                                            nestedScrollEnabled={true}
+                                            javaScriptEnabled={true}
+                                        />
                                     </View>
-                                </TouchableOpacity>
+                                ) : (
+                                    <TouchableOpacity
+                                        activeOpacity={0.9}
+                                        onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(formatAddress())}`)}
+                                        style={styles.mapContainer}
+                                    >
+                                        <View style={{ flex: 1, backgroundColor: isDarkMode ? '#1f2937' : '#e5e7eb', justifyContent: 'center', alignItems: 'center' }}>
+                                            <Ionicons name="map-outline" size={40} color={isDarkMode ? '#6ee7b7' : '#059669'} />
+                                            <Text style={{ fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: isDarkMode ? '#d1d5db' : '#374151', marginTop: 8 }}>Tap to Open Map</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </>
                     )}
@@ -539,10 +559,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     locationCardText: { flex: 1, fontSize: 14, fontFamily: 'Outfit_400Regular', color: colors.text, marginLeft: 8, lineHeight: 22 },
     mapLinkBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
     mapLinkText: { fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: '#059669', marginLeft: 6 },
-    mapPlaceholder: { width: '100%', height: 180, backgroundColor: colors.surfaceDeeper, borderTopLeftRadius: 12, borderTopRightRadius: 12, overflow: 'hidden', position: 'relative' },
-    staticMapImg: { width: '100%', height: '100%', opacity: 0.6 },
-    mapOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
-    mapPlaceholderText: { fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: '#fff', marginTop: 8 },
+    mapContainer: { width: '100%', height: 220, borderRadius: 12, overflow: 'hidden', marginTop: 4 },
 
     bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.surface, padding: 16, borderTopWidth: 1, borderTopColor: colors.border, elevation: 10 },
     contactBtn: { backgroundColor: '#059669', paddingVertical: 16, borderRadius: 20, alignItems: 'center' },

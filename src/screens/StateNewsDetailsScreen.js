@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Alert, KeyboardAvoidingView, Vibration, Share } from 'react-native';
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Alert, KeyboardAvoidingView, Vibration, Share, FlatList } from 'react-native';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -229,6 +229,8 @@ export default function StateNewsDetailsScreen() {
     const [currentUser, setCurrentUser] = useState(null);
     const [imageRatio, setImageRatio] = useState(null);
     const [isImageViewVisible, setIsImageViewVisible] = useState(false);
+    const [currentImage, setCurrentImage] = useState(0);
+    const detailCarouselRef = useRef(null);
     const [featuredProperty, setFeaturedProperty] = useState(null);
 
     useEffect(() => {
@@ -493,13 +495,55 @@ export default function StateNewsDetailsScreen() {
                         {/* ② Media */}
                         <View style={styles.mediaContainer}>
                             {news.imageUrls?.length > 0 && !isVideo ? (
-                                <TouchableOpacity activeOpacity={0.9} onPress={() => setIsImageViewVisible(true)}>
-                                    <Image
-                                        source={{ uri: news.imageUrls[0] }}
-                                        style={[styles.newsImage, { aspectRatio: imageRatio || 1.5 }]}
-                                        resizeMode="cover"
-                                    />
-                                </TouchableOpacity>
+                                <>
+                                    {(() => {
+                                        const imgs = news.imageUrls.filter(url => !url?.match(/\.(mp4|webm|ogg)$/i) && !url?.includes('video'));
+                                        const imgW = width - 40;
+                                        return (
+                                            <FlatList
+                                                data={imgs}
+                                                horizontal
+                                                pagingEnabled
+                                                showsHorizontalScrollIndicator={false}
+                                                scrollEventThrottle={16}
+                                                keyExtractor={(_, idx) => `d-img-${idx}`}
+                                                onScroll={(e) => {
+                                                    if (imgs.length <= 1) return;
+                                                    const rawIdx = Math.round(e.nativeEvent.contentOffset.x / imgW);
+                                                    if (rawIdx >= 0 && rawIdx < imgs.length && rawIdx !== currentImage) {
+                                                        setCurrentImage(rawIdx);
+                                                    }
+                                                }}
+                                                renderItem={({ item: uri, index }) => (
+                                                    <TouchableOpacity
+                                                        activeOpacity={0.9}
+                                                        onPress={() => { setCurrentImage(index); setIsImageViewVisible(true); }}
+                                                        style={{ width: imgW }}
+                                                    >
+                                                        <Image
+                                                            source={{ uri }}
+                                                            style={[styles.newsImage, { aspectRatio: imageRatio || 1.5, width: imgW }]}
+                                                            resizeMode="cover"
+                                                        />
+                                                    </TouchableOpacity>
+                                                )}
+                                            />
+                                        );
+                                    })()}
+                                    {news.imageUrls.filter(url => !url?.match(/\.(mp4|webm|ogg)$/i) && !url?.includes('video')).length > 1 && (
+                                        <View style={styles.dotRow}>
+                                            {news.imageUrls.filter(url => !url?.match(/\.(mp4|webm|ogg)$/i) && !url?.includes('video')).map((_, idx) => (
+                                                <View
+                                                    key={idx}
+                                                    style={[
+                                                        styles.dotIndicator,
+                                                        idx === currentImage && styles.dotIndicatorActive,
+                                                    ]}
+                                                />
+                                            ))}
+                                        </View>
+                                    )}
+                                </>
                             ) : (
                                 <View style={styles.placeholderImage}>
                                     <Ionicons name={isVideo ? "play-circle" : "newspaper"} size={64} color={colors.border} />
@@ -529,7 +573,7 @@ export default function StateNewsDetailsScreen() {
                         <View style={styles.metaRow}>
                             <View style={styles.locationContainer}>
                                 <Ionicons name="location-outline" size={16} color={colors.primary} />
-                                <Text style={styles.locationText}>{news.state || 'Jharkhand'}</Text>
+                                <Text style={styles.locationText}>{news.stateName || 'Jharkhand'}</Text>
                             </View>
                         </View>
 
@@ -690,7 +734,7 @@ export default function StateNewsDetailsScreen() {
 
                 <ImageViewing
                     images={news?.imageUrls ? news.imageUrls.map(uri => ({ uri })) : []}
-                    imageIndex={0}
+                    imageIndex={currentImage}
                     visible={isImageViewVisible}
                     onRequestClose={() => setIsImageViewVisible(false)}
                 />
@@ -715,6 +759,10 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     mediaContainer: { width: '100%', borderRadius: 20, overflow: 'hidden', marginBottom: 20, backgroundColor: 'transparent' },
     newsImage: { width: '100%', backgroundColor: 'transparent' },
     placeholderImage: { width: '100%', aspectRatio: 1.5, backgroundColor: colors.surfaceDeeper, alignItems: 'center', justifyContent: 'center' },
+    dotRow: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 10, marginBottom: 4 },
+    dotIndicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: isDarkMode ? '#4b5563' : '#d1d5db' },
+    dotIndicatorActive: { backgroundColor: colors.primary, width: 8, height: 8, borderRadius: 4 },
+    multiImageBadge: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 6, padding: 5 },
 
     authorRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
     avatarPlaceholder: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surfaceDeeper, alignItems: 'center', justifyContent: 'center', marginRight: 12, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
