@@ -498,15 +498,23 @@ export default function StateNewsDetailsScreen() {
                                 <>
                                     {(() => {
                                         const imgs = news.imageUrls.filter(url => !url?.match(/\.(mp4|webm|ogg)$/i) && !url?.includes('video'));
-                                        const imgW = width - 40;
+                                        const contentPadding = 16; // newsSection padding
+                                        const imgW = width - contentPadding * 2;
                                         return (
                                             <FlatList
                                                 data={imgs}
                                                 horizontal
                                                 pagingEnabled
+                                                disableIntervalMomentum={true}
                                                 showsHorizontalScrollIndicator={false}
                                                 scrollEventThrottle={16}
                                                 keyExtractor={(_, idx) => `d-img-${idx}`}
+                                                style={{ marginHorizontal: -contentPadding }}
+                                                getItemLayout={(_, index) => ({
+                                                    length: imgW,
+                                                    offset: imgW * index,
+                                                    index,
+                                                })}
                                                 onScroll={(e) => {
                                                     if (imgs.length <= 1) return;
                                                     const rawIdx = Math.round(e.nativeEvent.contentOffset.x / imgW);
@@ -756,7 +764,7 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
 
     newsSection: { backgroundColor: colors.surface, borderRadius: 20, padding: 16, elevation: 3, shadowColor: colors.shadow, shadowOpacity: isDarkMode ? 0.3 : 0.05, shadowRadius: 8, marginBottom: 24, borderWidth: isDarkMode ? 1 : 0, borderColor: colors.border },
 
-    mediaContainer: { width: '100%', borderRadius: 20, overflow: 'hidden', marginBottom: 20, backgroundColor: 'transparent' },
+    mediaContainer: { width: '100%', borderRadius: 20, marginBottom: 20, backgroundColor: 'transparent' },
     newsImage: { width: '100%', backgroundColor: 'transparent' },
     placeholderImage: { width: '100%', aspectRatio: 1.5, backgroundColor: colors.surfaceDeeper, alignItems: 'center', justifyContent: 'center' },
     dotRow: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 10, marginBottom: 4 },

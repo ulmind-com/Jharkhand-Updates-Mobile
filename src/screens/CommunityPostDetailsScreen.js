@@ -461,9 +461,16 @@ export default function CommunityPostDetailsScreen() {
                                             data={imgs}
                                             horizontal
                                             pagingEnabled
+                                            disableIntervalMomentum={true}
                                             showsHorizontalScrollIndicator={false}
                                             scrollEventThrottle={16}
                                             keyExtractor={(_, idx) => `p-img-${idx}`}
+                                            style={{ marginHorizontal: -20 }}
+                                            getItemLayout={(_, index) => ({
+                                                length: width,
+                                                offset: width * index,
+                                                index,
+                                            })}
                                             onScroll={(e) => {
                                                 if (imgs.length <= 1) return;
                                                 const rawIdx = Math.round(e.nativeEvent.contentOffset.x / width);
