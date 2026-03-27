@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 const LocationContext = createContext();
 
 export const LocationProvider = ({ children }) => {
-    const [selectedState, setSelectedState] = useState('Jharkhand');
+    const [selectedState, setSelectedState] = useState(null);
 
     useEffect(() => {
         const loadLocation = async () => {

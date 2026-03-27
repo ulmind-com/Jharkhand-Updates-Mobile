@@ -260,6 +260,7 @@ export default function NewsScreen() {
 
     // Re-fetch when selected state changes (or on first mount)
     useEffect(() => {
+        if (!selectedState) return; // Don't fetch until a state is available
         propIdxRef.current = 0;
         gapCountRef.current = 0;
         lastShownIdRef.current = null;

@@ -12,7 +12,7 @@ import { ThemeContext } from '../context/ThemeContext';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
-export default function TopHeader() {
+export default function TopHeader({ showBackButton = false, title = null }) {
     const navigation = useNavigation();
     const isFocused = useIsFocused();
     const { isDarkMode, colors } = React.useContext(ThemeContext);
@@ -71,16 +71,31 @@ export default function TopHeader() {
     return (
         <View style={styles.headerContainer}>
             <View style={styles.leftSection}>
-                <TouchableOpacity
-                    style={styles.locationSelector}
-                    onPress={() => {
-                        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setDropdownOpen(!dropdownOpen);
-                    }}
-                >
-                    <Text style={styles.locationText}>{selectedState}</Text>
-                    <Ionicons name="chevron-down" size={16} color={colors.primary} style={{ marginLeft: 4 }} />
-                </TouchableOpacity>
+                {showBackButton && (
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => {
+                            if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            navigation.goBack();
+                        }}
+                    >
+                        <Ionicons name="chevron-back" size={24} color={colors.text} />
+                    </TouchableOpacity>
+                )}
+                {title ? (
+                    <Text style={styles.locationText}>{title}</Text>
+                ) : (
+                    <TouchableOpacity
+                        style={styles.locationSelector}
+                        onPress={() => {
+                            if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setDropdownOpen(!dropdownOpen);
+                        }}
+                    >
+                        <Text style={styles.locationText}>{selectedState}</Text>
+                        <Ionicons name="chevron-down" size={16} color={colors.primary} style={{ marginLeft: 4 }} />
+                    </TouchableOpacity>
+                )}
 
                 {dropdownOpen && (
                     <MotiView
@@ -147,8 +162,15 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
         zIndex: 10,
     },
     leftSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
         position: 'relative',
         zIndex: 100,
+    },
+    backButton: {
+        padding: 4,
+        marginLeft: -4,
     },
     locationSelector: {
         flexDirection: 'row',

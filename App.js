@@ -11,6 +11,8 @@ import { Audio } from 'expo-av';
 import HomeScreen from './src/screens/HomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import TabNavigator from './src/navigation/TabNavigator';
+import CommunityScreen from './src/screens/CommunityScreen';
+import JobsScreen from './src/screens/JobsScreen';
 import VendorShopScreen from './src/screens/VendorShopScreen';
 import CommunityPostDetailsScreen from './src/screens/CommunityPostDetailsScreen';
 import StateNewsDetailsScreen from './src/screens/StateNewsDetailsScreen';
@@ -138,6 +140,8 @@ export default function App() {
               <Stack.Screen name="Events" component={EventsScreen} />
               <Stack.Screen name="Properties" component={PropertiesScreen} />
               <Stack.Screen name="Promotions" component={PromotionsScreen} />
+              <Stack.Screen name="Community" component={CommunityScreen} />
+              <Stack.Screen name="Jobs" component={JobsScreen} />
               <Stack.Screen name="CommunityPostDetails" component={CommunityPostDetailsScreen} />
               <Stack.Screen name="JobDetails" component={JobDetailsScreen} />
               <Stack.Screen name="EventDetails" component={EventDetailsScreen} />

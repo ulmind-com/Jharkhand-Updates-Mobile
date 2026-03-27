@@ -258,17 +258,19 @@ export default function PromotionsScreen() {
     return (
         <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top']}>
             <View style={[styles.navbar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-                <TouchableOpacity
-                    onPress={() => {
-                        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        navigation.goBack();
-                    }}
-                    style={styles.backButton}
-                >
-                    <Ionicons name="chevron-back" size={28} color={colors.primary} />
-                </TouchableOpacity>
-                <Text style={[styles.navbarTitle, { color: colors.primary }]}>Local Market</Text>
-                {myVendor ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity
+                        onPress={() => {
+                            if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            navigation.goBack();
+                        }}
+                        style={styles.backButton}
+                    >
+                        <Ionicons name="chevron-back" size={28} color={colors.primary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.navbarTitle, { color: colors.primary, marginLeft: 8 }]}>Local Market</Text>
+                </View>
+                {myVendor && (
                     <TouchableOpacity
                         style={styles.manageShopBtn}
                         onPress={() => {
@@ -279,8 +281,6 @@ export default function PromotionsScreen() {
                         <Ionicons name="storefront" size={14} color="#fff" />
                         <Text style={styles.manageShopText}>My Shop</Text>
                     </TouchableOpacity>
-                ) : (
-                    <View style={{ width: 40 }} />
                 )}
             </View>
 

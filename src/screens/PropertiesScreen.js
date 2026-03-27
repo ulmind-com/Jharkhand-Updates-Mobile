@@ -236,21 +236,19 @@ export default function PropertiesScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8 }}>
-                    <Ionicons name="chevron-back" size={28} color={colors.primary} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Real Estate</Text>
-                <TouchableOpacity onPress={() => setIsFilterVisible(!isFilterVisible)}>
-                    <Ionicons name={isFilterVisible ? "close-circle" : "filter"} size={24} color={isFilterVisible ? colors.primary : colors.textDim} style={{ marginLeft: 'auto', padding: 8 }} />
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8, zIndex: 10 }}>
+                        <Ionicons name="chevron-back" size={28} color={colors.primary} />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitle}>Properties</Text>
+                </View>
+                <TouchableOpacity onPress={() => setIsFilterVisible(!isFilterVisible)} style={{ padding: 8, marginRight: -8, zIndex: 10 }}>
+                    <Ionicons name={isFilterVisible ? "close-circle" : "filter"} size={24} color={isFilterVisible ? colors.primary : colors.textDim} />
                 </TouchableOpacity>
             </View>
 
             {isFilterVisible && (
-                <MotiView
-                    from={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    style={styles.filtersContainer}
-                >
+                <View style={styles.filtersContainer}>
                     <View style={styles.searchBar}>
                         <Ionicons name="search" size={20} color={colors.textDim} />
                         <TextInput
@@ -331,7 +329,7 @@ export default function PropertiesScreen() {
                     </ScrollView>
 
                     <View style={styles.rowFilters}>
-                        <View style={{ flex: 1, flexDirection: 'row', gap: 8 }}>
+                        <View style={{ flex: 1, flexDirection: 'row', gap: 8, marginRight: 8 }}>
                             <TextInput
                                 style={styles.priceInput}
                                 placeholder="Min ₹"
@@ -354,7 +352,7 @@ export default function PropertiesScreen() {
                             <Text style={styles.clearFiltersText}>Reset</Text>
                         </TouchableOpacity>
                     </View>
-                </MotiView>
+                </View>
             )}
 
             {loading ? (
@@ -449,9 +447,9 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     chipPillActive: { backgroundColor: isDarkMode ? 'rgba(5, 150, 105, 0.2)' : '#dcfce7', borderColor: colors.primary },
     chipText: { fontSize: 13, fontFamily: 'Outfit_500Medium', color: colors.textDim },
     chipTextActive: { color: colors.primary },
-    rowFilters: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 4 },
-    priceInput: { flex: 1, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, fontFamily: 'Outfit_500Medium', color: colors.text },
-    clearFiltersBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#fee2e2', marginLeft: 12 },
+    rowFilters: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginTop: 4 },
+    priceInput: { flex: 1, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, fontFamily: 'Outfit_500Medium', color: colors.text, maxWidth: 120 },
+    clearFiltersBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#fee2e2', marginLeft: 'auto' },
     clearFiltersText: { fontSize: 13, fontFamily: 'Outfit_600SemiBold', color: isDarkMode ? '#f87171' : '#ef4444' }
 });
 

@@ -195,21 +195,25 @@ export default function JobsScreen() {
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8 }}>
-                    <Ionicons name="chevron-back" size={28} color={colors.primary} />
-                </TouchableOpacity>
-                {showSearch ? (
-                    <TextInput
-                        style={{ flex: 1, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginHorizontal: 10, color: colors.text, fontFamily: 'Outfit_400Regular' }}
-                        placeholder="Search jobs..."
-                        placeholderTextColor={colors.textDim}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        autoFocus
-                    />
-                ) : (
-                    <Text style={styles.headerTitle}>Job Board</Text>
-                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    {!showSearch && (
+                        <TouchableOpacity onPress={() => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); navigation.goBack(); }} style={{ padding: 8, marginLeft: -8, marginRight: 8 }}>
+                            <Ionicons name="chevron-back" size={28} color={colors.primary} />
+                        </TouchableOpacity>
+                    )}
+                    {showSearch ? (
+                        <TextInput
+                            style={{ flex: 1, backgroundColor: isDarkMode ? colors.surfaceDeeper : '#f3f4f6', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginRight: 10, color: colors.text, fontFamily: 'Outfit_400Regular' }}
+                            placeholder="Search jobs..."
+                            placeholderTextColor={colors.textDim}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            autoFocus
+                        />
+                    ) : (
+                        <Text style={styles.headerTitle}>Job Board</Text>
+                    )}
+                </View>
                 <TouchableOpacity onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }} style={{ marginLeft: showSearch ? 0 : 'auto', padding: 4 }}>
                     <Ionicons name={showSearch ? "close" : "search"} size={24} color={colors.primary} />
                 </TouchableOpacity>

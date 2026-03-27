@@ -6,10 +6,10 @@ import * as Haptics from 'expo-haptics';
 import { Platform, View, Text, TouchableOpacity } from 'react-native';
 import { ThemeContext } from '../context/ThemeContext';
 
-import CommunityScreen from '../screens/CommunityScreen';
 import NewsScreen from '../screens/NewsScreen';
 import PropertiesScreen from '../screens/PropertiesScreen';
-import JobsScreen from '../screens/JobsScreen';
+import PromotionsScreen from '../screens/PromotionsScreen';
+import CommunityScreen from '../screens/CommunityScreen';
 import CreatePostModal from '../components/CreatePostModal';
 import MoreScreen from '../screens/MoreScreen';
 
@@ -23,6 +23,7 @@ export default function TabNavigator() {
     return (
         <React.Fragment>
             <Tab.Navigator
+                backBehavior="history"
                 screenOptions={({ route }) => ({
                     headerShown: false,
                     tabBarActiveTintColor: colors.primary, // emerald-600
@@ -52,9 +53,9 @@ export default function TabNavigator() {
                         let iconName;
                         size = 20; // Reduced size for 7 tabs
 
-                        if (route.name === 'Community') iconName = focused ? 'people' : 'people-outline';
+                        if (route.name === 'Properties') iconName = focused ? 'home' : 'home-outline';
                         else if (route.name === 'State News') iconName = focused ? 'newspaper' : 'newspaper-outline';
-                        else if (route.name === 'Jobs') iconName = focused ? 'briefcase' : 'briefcase-outline';
+                        else if (route.name === 'Promotions') iconName = focused ? 'megaphone' : 'megaphone-outline';
                         else if (route.name === 'More') iconName = focused ? 'menu' : 'menu-outline';
                         else if (route.name === 'Post') return null;
 
@@ -73,9 +74,9 @@ export default function TabNavigator() {
                 })}
             >
                 <Tab.Screen
-                    name="Community"
-                    options={{ tabBarLabel: 'Citizen News' }}
-                    component={CommunityScreen}
+                    name="Properties"
+                    options={{ tabBarLabel: 'Properties' }}
+                    component={PropertiesScreen}
                     listeners={{ tabPress: () => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                 />
                 <Tab.Screen
@@ -84,6 +85,12 @@ export default function TabNavigator() {
                     listeners={{ tabPress: () => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                 />
 
+                {/* Hidden tabs that still show the bottom bar when active */}
+                <Tab.Screen
+                    name="Community"
+                    component={CommunityScreen}
+                    options={{ tabBarItemStyle: { display: 'none' } }}
+                />
                 <Tab.Screen
                     name="Post"
                     component={EmptyScreen}
@@ -131,8 +138,9 @@ export default function TabNavigator() {
                 />
 
                 <Tab.Screen
-                    name="Jobs"
-                    component={JobsScreen}
+                    name="Promotions"
+                    options={{ tabBarLabel: 'Local Market' }}
+                    component={PromotionsScreen}
                     listeners={{ tabPress: () => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                 />
 

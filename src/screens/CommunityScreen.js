@@ -478,7 +478,7 @@ export default function CommunityScreen() {
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
-            <TopHeader />
+            <TopHeader showBackButton={true} title="Citizen News" />
 
             {loading && !loadingMore ? (
                 <View style={styles.listContent}>

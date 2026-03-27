@@ -11,7 +11,6 @@ import Svg, { Path } from 'react-native-svg';
 import { ThemeContext } from '../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import TopHeader from '../components/TopHeader';
 import { cricketFetch, BASE_URL, filterAndSortMatches } from '../services/CricketApi';
 import {
     fetchFootballLive, fetchFootballUpcoming, fetchFootballRecent, fetchFootballMatch,
@@ -1036,8 +1035,6 @@ export default function LiveSportsScreen() {
 
     return (
         <SafeAreaView style={[s.container, { backgroundColor: bgColor }]} edges={['top']}>
-            <TopHeader />
-
             {/* Hero */}
             <View style={s.heroBanner}>
                 <View style={[s.heroContent, { backgroundColor: isDarkMode ? '#121212' : '#fff' }]}>

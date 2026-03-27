@@ -218,6 +218,26 @@ const InputField = ({ icon, placeholder, value, onChangeText, secureTextEntry, k
 export default function LoginScreen() {
     const navigation = useNavigation();
 
+    // ✅ Smart post-login redirect:
+    // If user had previously selected a state → go to State News tab
+    // If no state selected before → go to Home (Select Your Region) screen
+    const navigateAfterLogin = async () => {
+        try {
+            const savedState = Platform.OS === 'web'
+                ? localStorage.getItem('selectedState')
+                : await SecureStore.getItemAsync('selectedState');
+            if (savedState) {
+                navigation.navigate('Main', { screen: 'State News' });
+            } else {
+                navigation.navigate('Home');
+            }
+        } catch (_) {
+            // Fallback: go Home if SecureStore fails
+            navigation.navigate('Home');
+        }
+    };
+
+
     // Screen States: 'signin', 'forgot', 'reset', 'signup_email', 'signup_otp', 'signup_details'
     const [currentScreen, setCurrentScreen] = useState('signin');
 
@@ -311,7 +331,7 @@ export default function LoginScreen() {
                 }
             }, 3000);
 
-            navigation.navigate('Main');
+            navigateAfterLogin();
         } catch (err) {
             console.warn('[GoogleAuth]', err.message);
             showError('Could not complete Google login. Please try again.');
@@ -361,7 +381,7 @@ export default function LoginScreen() {
                     }, 3000);
                 }
 
-                navigation.navigate('Main');
+                navigateAfterLogin();
             } else {
                 showError(res.data?.message || 'Invalid credentials');
             }
