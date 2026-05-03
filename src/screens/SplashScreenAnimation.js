@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Image, StyleSheet, Dimensions, StatusBar, Animated, Easing, Text } from 'react-native';
+import { View, Image, StyleSheet, Dimensions, StatusBar, Animated, Easing, Text, Linking, TouchableOpacity } from 'react-native';
 import { Audio } from 'expo-av';
 import { MotiView, MotiText } from 'moti';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 const LOGO = require('../../assets/julogo-text-white.png');
+const ULMIND_LOGO = require('../../assets/ulmind.png');
 const SOUND = require('../../assets/sounds/startup_chime.wav');
 
 export default function SplashScreenAnimation({ onFinish }) {
@@ -128,14 +129,21 @@ export default function SplashScreenAnimation({ onFinish }) {
                 </MotiView>
             </MotiView>
 
-            {/* Version Text & Powered By */}
+            {/* Powered By Logo */}
             <MotiView
                 style={styles.footerContainer}
                 from={{ opacity: 0 }}
                 animate={{ opacity: isExiting ? 0 : 1 }}
                 transition={{ type: 'timing', duration: 800, delay: 1200 }}
             >
-                <Text style={styles.poweredText}>Powered with ❤️ by ULMiND</Text>
+                <TouchableOpacity 
+                    style={styles.poweredByWrapper} 
+                    activeOpacity={0.7} 
+                    onPress={() => Linking.openURL('https://www.ulmind.com')}
+                >
+                    <Text style={styles.poweredByText}>POWERED BY</Text>
+                    <Image source={ULMIND_LOGO} style={styles.ulmindLogo} resizeMode="contain" />
+                </TouchableOpacity>
             </MotiView>
         </View>
     );
@@ -201,16 +209,30 @@ const styles = StyleSheet.create({
     },
     footerContainer: {
         position: 'absolute',
-        bottom: 30,
+        bottom: 40,
         alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
     },
-    poweredText: {
-        color: '#a7f3d0', // Light green matching the tagline
+    poweredByWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 10, // increase clickable area
+    },
+    poweredByText: {
+        color: '#a7f3d0',
         fontWeight: '600',
-        fontSize: 12,
-        letterSpacing: 1,
-        marginBottom: 6,
+        fontSize: 11,
+        letterSpacing: 2,
+        opacity: 0.7,
+        marginRight: 2, // Space between text and logo reduced
+    },
+    ulmindLogo: {
+        width: 100, // Slightly smaller to fit nicely in a row
+        height: 25,
         opacity: 0.9,
+        marginLeft: -12, // Pull logo closer to text (compensating for image padding)
     },
     version: {
         color: '#ffffff',

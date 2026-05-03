@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { View as MotiView } from 'moti';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NewsSkeleton } from '../components/Skeletons';
 import TopHeader from '../components/TopHeader';
 import WeatherWidget from '../components/WeatherWidget';
@@ -13,8 +14,46 @@ import { useLocation } from '../context/LocationContext';
 import { ThemeContext } from '../context/ThemeContext';
 import FestivalBanner from '../components/FestivalBanner';
 import NewsCard from '../components/NewsCard';
+import RssNewsCard from '../components/RssNewsCard';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
+
+// ─── SWR Cache (Stale-While-Revalidate) ──────────────────────────────────────
+// Module-level memory cache (instant access within same session)
+const _memoryFeedCache = {};
+
+// Persist to AsyncStorage for cross-session instant loading
+const FEED_CACHE_KEY = 'swr_feed_cache_';
+
+async function saveFeedToCache(stateName, feedData) {
+    try {
+        _memoryFeedCache[stateName] = { data: feedData, timestamp: Date.now() };
+        await AsyncStorage.setItem(
+            FEED_CACHE_KEY + stateName,
+            JSON.stringify({ data: feedData, timestamp: Date.now() })
+        );
+    } catch (_) { /* cache save failure is non-critical */ }
+}
+
+async function loadFeedFromCache(stateName) {
+    try {
+        // 1. Try memory cache first (instant)
+        if (_memoryFeedCache[stateName]) {
+            return _memoryFeedCache[stateName].data;
+        }
+        // 2. Fallback to AsyncStorage (persistent across app restarts)
+        const cached = await AsyncStorage.getItem(FEED_CACHE_KEY + stateName);
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            // Cache valid for 24 hours max
+            if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+                _memoryFeedCache[stateName] = parsed; // warm up memory cache
+                return parsed.data;
+            }
+        }
+    } catch (_) { /* cache read failure is non-critical */ }
+    return null;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -258,16 +297,35 @@ export default function NewsScreen() {
         } catch (_) { /* silently fail – properties are non-critical */ }
     }, []);
 
-    // Re-fetch when selected state changes (or on first mount)
+    // ─── SWR: Stale-While-Revalidate on state change / mount ─────────────────
     useEffect(() => {
-        if (!selectedState) return; // Don't fetch until a state is available
+        if (!selectedState) return;
         propIdxRef.current = 0;
         gapCountRef.current = 0;
         lastShownIdRef.current = null;
         nextGapRef.current = 3 + Math.floor(Math.random() * 3);
         setPage(0);
         setHasMore(true);
-        fetchProperties().then(() => fetchNews(0, false, selectedState));
+
+        const initFeed = async () => {
+            // STEP 1: Show cached data INSTANTLY (stale)
+            let hasCache = false;
+            const cached = await loadFeedFromCache(selectedState);
+            if (cached && cached.length > 0) {
+                setFeed(cached);
+                setLoading(false); // Hide skeleton immediately!
+                hasCache = true;
+            } else {
+                setFeed([]); // Clear old state data
+                setLoading(true); // SHOW SKELETON since no cache exists
+            }
+
+            // STEP 2: Fetch properties + fresh data in background (revalidate)
+            await fetchProperties();
+            await fetchNews(0, false, selectedState, hasCache); // pass true if we already have cache
+        };
+
+        initFeed();
     }, [selectedState]);
 
     // Restore scroll position when navigating back from details
@@ -314,32 +372,70 @@ export default function NewsScreen() {
         return result;
     };
 
-    const fetchNews = async (pageNum, append = false, targetState = selectedState) => {
+    const fetchNews = async (pageNum, append = false, targetState = selectedState, isRevalidating = false) => {
         if (append) setLoadingMore(true);
-        else setLoading(true);
+        else if (!isRevalidating) setLoading(true); // Don't show skeleton if we already showed cache!
 
         try {
-            const res = await axios.get(`${BASE_URL}/state-news/${targetState}`, {
+            // Use merged feed endpoint (DB + RSS news)
+            const res = await axios.get(`${BASE_URL}/rss-feed/${targetState}/merged`, {
                 params: { page: pageNum, size: 10 }
             });
 
             if (res.data.success) {
-                const pageData = res.data.data;
-                const fetchedNews = pageData.content || [];
-                const batchWithProps = injectBatch(fetchedNews, propPoolRef.current);
+                const feedData = res.data.data;
+                const mergedItems = (feedData.items || []).map(item => ({
+                    ...item,
+                    _type: item.isExternal ? 'rss_news' : 'news',
+                }));
+
+                // Inject property ads only into non-RSS items flow
+                const finalItems = injectBatch(
+                    mergedItems.filter(i => i._type === 'news'),
+                    propPoolRef.current
+                );
+                // Insert RSS items back at their sorted positions
+                const rssItems = mergedItems.filter(i => i._type === 'rss_news');
+                const combined = [...finalItems, ...rssItems].sort((a, b) => {
+                    const dateA = a.publishedAt || a.createdAt || '';
+                    const dateB = b.publishedAt || b.createdAt || '';
+                    return new Date(dateB) - new Date(dateA);
+                });
 
                 if (append) {
-                    setFeed(prev => [...prev, ...batchWithProps]);
+                    setFeed(prev => {
+                        const updated = [...prev, ...combined];
+                        saveFeedToCache(targetState, updated); // Update cache
+                        return updated;
+                    });
                 } else {
-                    setFeed(batchWithProps);
+                    setFeed(combined);
+                    saveFeedToCache(targetState, combined); // Save to SWR cache
                 }
 
-                setPage(pageData.number);
-                setHasMore(!pageData.last);
+                setPage(feedData.currentPage);
+                setHasMore(feedData.hasMore);
             }
         } catch (error) {
-            console.error('Error fetching news:', error);
-            Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to load news' });
+            console.error('Error fetching merged feed:', error);
+            // Fallback to original endpoint if merged feed fails
+            try {
+                const fallback = await axios.get(`${BASE_URL}/state-news/${targetState}`, {
+                    params: { page: pageNum, size: 10 }
+                });
+                if (fallback.data.success) {
+                    const pageData = fallback.data.data;
+                    const fetchedNews = pageData.content || [];
+                    const batchWithProps = injectBatch(fetchedNews, propPoolRef.current);
+                    if (append) setFeed(prev => [...prev, ...batchWithProps]);
+                    else setFeed(batchWithProps);
+                    setPage(pageData.number);
+                    setHasMore(!pageData.last);
+                }
+            } catch (fallbackErr) {
+                console.error('Fallback fetch also failed:', fallbackErr);
+                Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to load news' });
+            }
         } finally {
             setLoading(false);
             setLoadingMore(false);
@@ -362,7 +458,7 @@ export default function NewsScreen() {
         setPage(0);
         setHasMore(true);
         await fetchProperties();
-        await fetchNews(0, false, selectedState);
+        await fetchNews(0, false, selectedState, true); // true = don't show skeleton while pulling to refresh
         setRefreshing(false);
     };
 
@@ -370,6 +466,16 @@ export default function NewsScreen() {
         if (item._type === 'property') {
             return (
                 <PropertyAdCard
+                    item={item}
+                    navigation={navigation}
+                    colors={colors}
+                    isDarkMode={isDarkMode}
+                />
+            );
+        }
+        if (item._type === 'rss_news') {
+            return (
+                <RssNewsCard
                     item={item}
                     navigation={navigation}
                     colors={colors}
@@ -413,7 +519,11 @@ export default function NewsScreen() {
                     ref={flatListRef}
                     ListHeaderComponent={renderFeedHeader}
                     data={feed}
-                    keyExtractor={(item, index) => (item._type === 'property' ? `prop_${item.id}_${index}` : item.id ? item.id.toString() : index.toString())}
+                    keyExtractor={(item, index) => {
+                        if (item._type === 'property') return `prop_${item.id}_${index}`;
+                        if (item._type === 'rss_news') return `rss_${item.id}_${index}`;
+                        return item.id ? item.id.toString() : index.toString();
+                    }}
                     renderItem={renderItem}
                     contentContainerStyle={styles.listContent}
                     onEndReached={handleLoadMore}

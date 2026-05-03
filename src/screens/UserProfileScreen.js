@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Vibration, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform, Modal, TextInput } from 'react-native';
+import { Vibration, View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform, Modal, TextInput, Linking } from 'react-native';
 import axios from 'axios';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ import { ThemeContext } from '../context/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
+const ULMIND_LOGO = require('../../assets/ulmind.png');
 
 export default function UserProfileScreen() {
     const navigation = useNavigation();
@@ -423,6 +424,15 @@ export default function UserProfileScreen() {
                     </View>
                 </View>
 
+                {/* Powered By Footer */}
+                <TouchableOpacity 
+                    style={styles.poweredByWrapper} 
+                    activeOpacity={0.7} 
+                    onPress={() => Linking.openURL('https://www.ulmind.com')}
+                >
+                    <Image source={ULMIND_LOGO} style={styles.ulmindLogo} resizeMode="contain" />
+                </TouchableOpacity>
+
             </ScrollView>
 
             <Modal
@@ -584,7 +594,28 @@ const getStyles = (colors, isDarkMode) => StyleSheet.create({
     successModalTitle: { fontSize: 22, fontFamily: 'Outfit_700Bold', color: colors.text, marginBottom: 8, textAlign: 'center' },
     successModalMessage: { fontSize: 15, fontFamily: 'Outfit_400Regular', color: colors.textDim, textAlign: 'center', marginBottom: 24, lineHeight: 22 },
     successModalBtn: { backgroundColor: '#10b981', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 16, width: '100%', alignItems: 'center' },
-    successModalBtnText: { color: '#ffffff', fontSize: 16, fontFamily: 'Outfit_600SemiBold' }
+    successModalBtnText: { color: '#ffffff', fontSize: 16, fontFamily: 'Outfit_600SemiBold' },
+
+    poweredByWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 30,
+        opacity: 0.8,
+    },
+    poweredByText: {
+        color: isDarkMode ? '#a7f3d0' : '#059669',
+        fontWeight: '600',
+        fontSize: 11,
+        letterSpacing: 2,
+        opacity: 0.7,
+        marginRight: 2,
+    },
+    ulmindLogo: {
+        width: 100,
+        height: 25,
+        opacity: 0.9,
+    }
 });
 
 
