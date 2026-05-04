@@ -85,13 +85,13 @@ export default function ReelsScreen() {
         }
     };
 
-    const onViewableItemsChanged = useRef(({ viewableItems }) => {
-        if (viewableItems.length > 0) {
+    const onViewableItemsChanged = useCallback(({ viewableItems }) => {
+        if (viewableItems.length > 0 && viewableItems[0].index != null) {
             setCurrentIndex(viewableItems[0].index);
         }
-    }).current;
+    }, []);
 
-    const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 80 }).current;
+    const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
 
     const handleShare = async (item) => {
         try {
