@@ -135,7 +135,7 @@ export default function CreateStateNewsScreen() {
             return;
         }
         if (!stateName) {
-            Toast.show({ type: 'error', text1: 'Select State', text2: 'Please select Jharkhand or Bihar.' });
+            Toast.show({ type: 'error', text1: 'Select State', text2: 'Please select a state.' });
             return;
         }
         if (!content.trim()) {
@@ -314,7 +314,7 @@ export default function CreateStateNewsScreen() {
                 <View style={styles.fieldGroup}>
                     <Text style={styles.fieldLabel}>State *</Text>
                     <View style={styles.chipRow}>
-                        {['Jharkhand', 'Bihar'].map(s => (
+                        {['Jharkhand', 'Bihar', 'West Bengal'].map(s => (
                             <TouchableOpacity
                                 key={s}
                                 style={[styles.chip, stateName === s && styles.chipActive]}
@@ -464,7 +464,7 @@ const styles = StyleSheet.create({
     fieldLabel: { fontSize: 14, fontFamily: 'Outfit_600SemiBold', color: '#374151', marginBottom: 8 },
     fieldInput: { backgroundColor: '#f9fafb', borderWidth: 1.5, borderColor: '#d1d5db', borderRadius: 12, padding: 14, fontSize: 16, fontFamily: 'Outfit_400Regular', color: '#1f2937' },
     textArea: { height: 180, textAlignVertical: 'top' },
-    chipRow: { flexDirection: 'row', gap: 12 },
+    chipRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
     chip: { paddingHorizontal: 24, paddingVertical: 10, borderRadius: 30, borderWidth: 1.5, borderColor: '#d1d5db', backgroundColor: '#f9fafb' },
     chipActive: { backgroundColor: '#047857', borderColor: '#047857' },
     chipText: { fontSize: 15, fontFamily: 'Outfit_600SemiBold', color: '#6b7280' },

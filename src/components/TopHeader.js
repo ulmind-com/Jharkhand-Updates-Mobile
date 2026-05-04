@@ -10,7 +10,7 @@ import axios from 'axios';
 import { useLocation } from '../context/LocationContext';
 import { ThemeContext } from '../context/ThemeContext';
 
-const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
+const ALL_STATES = ['Jharkhand', 'Bihar', 'West Bengal'];
 
 export default function TopHeader({ showBackButton = false, title = null }) {
     const navigation = useNavigation();
@@ -32,10 +32,10 @@ export default function TopHeader({ showBackButton = false, title = null }) {
                 try {
                     // Fetch notifications + profile image in parallel
                     const [notifRes, profileRes] = await Promise.allSettled([
-                        axios.get(`${BASE_URL}/notifications/recent?limit=1`, {
+                        axios.get(`https://api.jharkhandbiharupdates.com/api/v1/notifications/recent?limit=1`, {
                             headers: { Authorization: `Bearer ${token}` }
                         }),
-                        axios.get(`${BASE_URL}/user/profile`, {
+                        axios.get(`https://api.jharkhandbiharupdates.com/api/v1/user/profile`, {
                             headers: { Authorization: `Bearer ${token}` }
                         })
                     ]);
@@ -62,9 +62,9 @@ export default function TopHeader({ showBackButton = false, title = null }) {
         checkAuthAndNotifications();
     }, [isFocused]);
 
-    const toggleLocation = () => {
+    const toggleLocation = (newState) => {
         if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setLocation(selectedState === 'Jharkhand' ? 'Bihar' : 'Jharkhand');
+        setLocation(newState);
         setDropdownOpen(false);
     };
 
@@ -103,9 +103,15 @@ export default function TopHeader({ showBackButton = false, title = null }) {
                         animate={{ opacity: 1, translateY: 0 }}
                         style={styles.dropdown}
                     >
-                        <TouchableOpacity style={styles.dropdownItem} onPress={toggleLocation}>
-                            <Text style={styles.dropdownText}>{selectedState === 'Jharkhand' ? 'Bihar' : 'Jharkhand'}</Text>
-                        </TouchableOpacity>
+                        {ALL_STATES.filter(s => s !== selectedState).map(state => (
+                            <TouchableOpacity
+                                key={state}
+                                style={styles.dropdownItem}
+                                onPress={() => toggleLocation(state)}
+                            >
+                                <Text style={styles.dropdownText}>{state}</Text>
+                            </TouchableOpacity>
+                        ))}
                     </MotiView>
                 )}
             </View>

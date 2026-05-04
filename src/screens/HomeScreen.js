@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, Dimensions, Platform, ActivityIndicator, Modal } from 'react-native';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
@@ -14,6 +14,7 @@ const { width, height } = Dimensions.get('window');
 const states = [
     "Bihar",
     "Jharkhand",
+    "West Bengal",
 ];
 
 export default function HomeScreen() {

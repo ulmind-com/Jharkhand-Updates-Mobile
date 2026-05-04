@@ -30,6 +30,9 @@ function getSourceColor(sourceName) {
     const name = sourceName.toLowerCase();
     if (name.includes('news18')) return '#e11d48';
     if (name.includes('inext')) return '#0891b2';
+    if (name.includes('abp')) return '#dc2626';
+    if (name.includes('zee') || name.includes('24 ghanta')) return '#7c3aed';
+    if (name.includes('sangbad')) return '#0891b2';
     return '#6366f1';
 }
 
