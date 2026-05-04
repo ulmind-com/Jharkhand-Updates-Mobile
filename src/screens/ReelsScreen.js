@@ -28,7 +28,7 @@ export default function ReelsScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [containerHeight, setContainerHeight] = useState(SCREEN_HEIGHT);
+    const [containerHeight, setContainerHeight] = useState(0);
 
     const flatListRef = useRef(null);
     const videoRefs = useRef({});
@@ -142,7 +142,7 @@ export default function ReelsScreen() {
                         />
                         {/* YouTube Player - centered */}
                         {isActive && (
-                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center' }]} pointerEvents={Platform.OS === 'web' ? "auto" : "none"}>
+                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]} pointerEvents="none">
                                 {Platform.OS === 'web' ? (
                                     <iframe
                                         src={`https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`}
@@ -150,27 +150,27 @@ export default function ReelsScreen() {
                                         allow="autoplay; fullscreen; encrypted-media"
                                     />
                                 ) : (
-                                    <View style={{ width: SCREEN_WIDTH, height: Math.round(SCREEN_WIDTH * 9 / 16), overflow: 'hidden' }}>
-                                        <YoutubePlayer
-                                            height={Math.round(SCREEN_WIDTH * 9 / 16)}
-                                            width={SCREEN_WIDTH}
-                                            videoId={item.youtubeVideoId}
-                                            play={isActive}
-                                            forceAndroidAutoplay={true}
-                                            initialPlayerParams={{
-                                                modestbranding: true,
-                                                controls: false,
-                                                rel: false,
-                                                loop: true,
-                                                fs: false,
-                                            }}
-                                            webViewProps={{
-                                                mediaPlaybackRequiresUserAction: false,
-                                                allowsInlineMediaPlayback: true,
-                                            }}
-                                            webViewStyle={{ opacity: 0.99 }}
-                                        />
-                                    </View>
+                                    <YoutubePlayer
+                                        height={containerHeight > 0 ? containerHeight : SCREEN_HEIGHT}
+                                        width={SCREEN_WIDTH}
+                                        videoId={item.youtubeVideoId}
+                                        play={isActive}
+                                        forceAndroidAutoplay={true}
+                                        initialPlayerParams={{
+                                            modestbranding: true,
+                                            controls: false,
+                                            rel: false,
+                                            loop: true,
+                                            fs: false,
+                                            playsinline: true,
+                                        }}
+                                        webViewProps={{
+                                            mediaPlaybackRequiresUserAction: false,
+                                            allowsInlineMediaPlayback: true,
+                                            androidLayerType: 'hardware',
+                                        }}
+                                        webViewStyle={{ opacity: 0.99 }}
+                                    />
                                 )}
                             </View>
                         )}
@@ -300,36 +300,37 @@ export default function ReelsScreen() {
                 </View>
             </SafeAreaView>
 
-            <FlatList
+            {/* Measure the available space first, then render FlatList */}
+            <View
+                style={{ flex: 1 }}
                 onLayout={(e) => {
-                    if (e.nativeEvent.layout.height > 0) {
-                        setContainerHeight(e.nativeEvent.layout.height);
+                    const h = e.nativeEvent.layout.height;
+                    if (h > 0 && containerHeight === 0) {
+                        setContainerHeight(h);
                     }
                 }}
-                ref={flatListRef}
-                data={reels}
-                renderItem={renderReel}
-                keyExtractor={(item, index) => item.id + '_' + index}
-                pagingEnabled
-                showsVerticalScrollIndicator={false}
-                snapToAlignment="start"
-                snapToInterval={containerHeight}
-                decelerationRate="fast"
-                onViewableItemsChanged={onViewableItemsChanged}
-                viewabilityConfig={viewabilityConfig}
-                onEndReached={loadMore}
-                onEndReachedThreshold={0.5}
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                getItemLayout={(data, index) => ({
-                    length: containerHeight,
-                    offset: containerHeight * index,
-                    index,
-                })}
-                initialNumToRender={2}
-                maxToRenderPerBatch={3}
-                windowSize={5}
-            />
+            >
+                {containerHeight > 0 && (
+                    <FlatList
+                        ref={flatListRef}
+                        data={reels}
+                        renderItem={renderReel}
+                        keyExtractor={(item, index) => item.id + '_' + index}
+                        pagingEnabled
+                        showsVerticalScrollIndicator={false}
+                        decelerationRate="fast"
+                        onViewableItemsChanged={onViewableItemsChanged}
+                        viewabilityConfig={viewabilityConfig}
+                        onEndReached={loadMore}
+                        onEndReachedThreshold={0.5}
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        initialNumToRender={2}
+                        maxToRenderPerBatch={3}
+                        windowSize={5}
+                    />
+                )}
+            </View>
         </View>
     );
 }
