@@ -28,6 +28,7 @@ export default function ReelsScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
+    const [containerHeight, setContainerHeight] = useState(SCREEN_HEIGHT);
 
     const flatListRef = useRef(null);
     const videoRefs = useRef({});
@@ -111,7 +112,7 @@ export default function ReelsScreen() {
         const isActive = index === currentIndex && isFocused;
 
         return (
-            <View style={styles.reelContainer}>
+            <View style={[styles.reelContainer, { height: containerHeight }]}>
                 {/* Video / YouTube Thumbnail */}
                 {item.type === 'NATIVE_MP4' && item.videoUrl ? (
                     <Video
@@ -141,7 +142,7 @@ export default function ReelsScreen() {
                                     />
                                 ) : (
                                     <YoutubePlayer
-                                        height={SCREEN_HEIGHT}
+                                        height={containerHeight}
                                         width={SCREEN_WIDTH}
                                         videoId={item.youtubeVideoId}
                                         play={isActive}
@@ -286,6 +287,11 @@ export default function ReelsScreen() {
             </SafeAreaView>
 
             <FlatList
+                onLayout={(e) => {
+                    if (e.nativeEvent.layout.height > 0) {
+                        setContainerHeight(e.nativeEvent.layout.height);
+                    }
+                }}
                 ref={flatListRef}
                 data={reels}
                 renderItem={renderReel}
@@ -293,7 +299,7 @@ export default function ReelsScreen() {
                 pagingEnabled
                 showsVerticalScrollIndicator={false}
                 snapToAlignment="start"
-                snapToInterval={SCREEN_HEIGHT}
+                snapToInterval={containerHeight}
                 decelerationRate="fast"
                 onViewableItemsChanged={onViewableItemsChanged}
                 viewabilityConfig={viewabilityConfig}
@@ -302,8 +308,8 @@ export default function ReelsScreen() {
                 refreshing={refreshing}
                 onRefresh={onRefresh}
                 getItemLayout={(data, index) => ({
-                    length: SCREEN_HEIGHT,
-                    offset: SCREEN_HEIGHT * index,
+                    length: containerHeight,
+                    offset: containerHeight * index,
                     index,
                 })}
                 initialNumToRender={2}
