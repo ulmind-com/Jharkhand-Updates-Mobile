@@ -109,10 +109,8 @@ export default function ReelsScreen() {
         }
     };
 
-    // ─── Render a single Reel ─────────────────────────────────────────────────
     const renderReel = ({ item, index }) => {
         const isActive = index === currentIndex && isFocused;
-        const isNearActive = Math.abs(index - currentIndex) <= 1 && isFocused;
         const shouldPlay = isActive && !pausedByUser;
 
         return (
@@ -154,27 +152,28 @@ export default function ReelsScreen() {
                             resizeMode="cover"
                             blurRadius={Platform.OS === 'ios' ? 15 : 8}
                         />
-                        {/* Sharp thumbnail - hide when YouTube player is loaded */}
+                        {/* Sharp thumbnail - visible when player not loaded */}
                         <Image
                             source={{ uri: item.thumbnailUrl || `https://i.ytimg.com/vi/${item.youtubeVideoId}/hqdefault.jpg` }}
-                            style={[styles.video, { opacity: isNearActive ? 0 : 1 }]}
+                            style={[styles.video, { opacity: isActive ? 0 : 1 }]}
                             resizeMode="cover"
                         />
-                        {/* YouTube Player - pre-render for nearby items, play only active */}
-                        {isNearActive && (
+                        {/* YouTube Player - mount ONLY when active so forceAndroidAutoplay works */}
+                        {isActive && (
                             <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]} pointerEvents="none">
                                 {Platform.OS === 'web' ? (
                                     <iframe
-                                        src={`https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=${isActive ? 1 : 0}&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`}
+                                        src={`https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`}
                                         style={{ width: '100%', height: '100%', border: 'none', objectFit: 'contain' }}
                                         allow="autoplay; fullscreen; encrypted-media"
                                     />
                                 ) : (
                                     <YoutubePlayer
+                                        key={`yt_${item.youtubeVideoId}_${index}`}
                                         height={containerHeight > 0 ? containerHeight : SCREEN_HEIGHT}
                                         width={SCREEN_WIDTH}
                                         videoId={item.youtubeVideoId}
-                                        play={shouldPlay}
+                                        play={!pausedByUser}
                                         forceAndroidAutoplay={true}
                                         initialPlayerParams={{
                                             modestbranding: true,
