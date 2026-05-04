@@ -16,10 +16,10 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
-const ReelItem = React.memo(({ item, index, isActive, currentIndex, containerHeight, videoRefs, handleShare, selectedState }) => {
+const ReelItem = ({ item, index, isActive, containerHeight, videoRefs, handleShare, selectedState }) => {
     const [isPaused, setIsPaused] = useState(false);
-    const isNearActive = Math.abs(index - currentIndex) <= 1;
 
+    // Reset pause state when this item becomes inactive
     useEffect(() => {
         if (!isActive) setIsPaused(false);
     }, [isActive]);
@@ -28,7 +28,6 @@ const ReelItem = React.memo(({ item, index, isActive, currentIndex, containerHei
 
     return (
         <View style={[styles.reelContainer, { height: containerHeight }]}>
-            {/* Video / YouTube Thumbnail */}
             {item.type === 'NATIVE_MP4' && item.videoUrl ? (
                 <View style={styles.video}>
                     <Video
@@ -43,11 +42,9 @@ const ReelItem = React.memo(({ item, index, isActive, currentIndex, containerHei
                     />
                     {Platform.OS !== 'web' && (
                         <TouchableOpacity
-                            style={StyleSheet.absoluteFill}
+                            style={[StyleSheet.absoluteFill, { zIndex: 10, elevation: 10 }]}
                             activeOpacity={1}
-                            onPress={() => {
-                                if (isActive) setIsPaused(prev => !prev);
-                            }}
+                            onPress={() => { if (isActive) setIsPaused(prev => !prev); }}
                         >
                             {isActive && isPaused && (
                                 <View style={styles.pauseOverlay}>
@@ -59,21 +56,23 @@ const ReelItem = React.memo(({ item, index, isActive, currentIndex, containerHei
                 </View>
             ) : item.type === 'YOUTUBE' && item.youtubeVideoId ? (
                 <View style={styles.video}>
+                    {/* Blurred background thumbnail */}
                     <Image
                         source={{ uri: item.thumbnailUrl || `https://i.ytimg.com/vi/${item.youtubeVideoId}/hqdefault.jpg` }}
                         style={[styles.video, { opacity: 0.6 }]}
                         resizeMode="cover"
                         blurRadius={Platform.OS === 'ios' ? 15 : 8}
                     />
+                    {/* Sharp thumbnail - show when NOT active */}
                     <Image
                         source={{ uri: item.thumbnailUrl || `https://i.ytimg.com/vi/${item.youtubeVideoId}/hqdefault.jpg` }}
                         style={[styles.video, { opacity: isActive ? 0 : 1 }]}
                         resizeMode="cover"
                     />
-                    {/* Always load iframe if near active to prevent mount delays, but only show when active */}
-                    {isNearActive && (
+                    {/* YouTube Player - ONLY mount when active. forceAndroidAutoplay fires on mount so we CANNOT pre-mount */}
+                    {isActive && (
                         Platform.OS === 'web' ? (
-                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', opacity: isActive ? 1 : 0 }]} pointerEvents="auto">
+                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]} pointerEvents="auto">
                                 <iframe
                                     src={`https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`}
                                     style={{ width: '100%', height: '100%', border: 'none', objectFit: 'contain' }}
@@ -81,13 +80,13 @@ const ReelItem = React.memo(({ item, index, isActive, currentIndex, containerHei
                                 />
                             </View>
                         ) : (
-                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', opacity: isActive ? 1 : 0 }]} pointerEvents="none">
+                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]} pointerEvents="none">
                                 <YoutubePlayer
-                                    key={`yt_${item.youtubeVideoId}_${index}`}
+                                    key={`yt_active_${item.youtubeVideoId}_${index}`}
                                     height={containerHeight > 0 ? containerHeight : SCREEN_HEIGHT}
                                     width={SCREEN_WIDTH}
                                     videoId={item.youtubeVideoId}
-                                    play={isActive && !isPaused}
+                                    play={!isPaused}
                                     forceAndroidAutoplay={true}
                                     initialPlayerParams={{ modestbranding: true, controls: false, rel: false, loop: true, fs: false, playsinline: true }}
                                     webViewProps={{ mediaPlaybackRequiresUserAction: false, allowsInlineMediaPlayback: true, androidLayerType: 'hardware', scrollEnabled: false, nestedScrollEnabled: false, overScrollMode: 'never' }}
@@ -96,13 +95,12 @@ const ReelItem = React.memo(({ item, index, isActive, currentIndex, containerHei
                             </View>
                         )
                     )}
+                    {/* Tap overlay for native only */}
                     {Platform.OS !== 'web' && (
                         <TouchableOpacity
                             style={[StyleSheet.absoluteFill, { zIndex: 10, elevation: 10 }]}
                             activeOpacity={1}
-                            onPress={() => {
-                                if (isActive) setIsPaused(prev => !prev);
-                            }}
+                            onPress={() => { if (isActive) setIsPaused(prev => !prev); }}
                         >
                             {isActive && isPaused && (
                                 <View style={styles.pauseOverlay}>
@@ -149,7 +147,7 @@ const ReelItem = React.memo(({ item, index, isActive, currentIndex, containerHei
             </View>
         </View>
     );
-});
+};
 
 export default function ReelsScreen() {
     const { selectedState } = useLocation();
@@ -242,21 +240,20 @@ export default function ReelsScreen() {
         }
     };
 
-    const renderReel = useCallback(({ item, index }) => {
+    const renderReel = ({ item, index }) => {
         const isActive = index === currentIndex && isFocused;
         return (
             <ReelItem
                 item={item}
                 index={index}
                 isActive={isActive}
-                currentIndex={currentIndex}
                 containerHeight={containerHeight}
                 videoRefs={videoRefs}
                 handleShare={handleShare}
                 selectedState={selectedState}
             />
         );
-    }, [currentIndex, isFocused, containerHeight, selectedState]);
+    };
 
     // ─── Loading State ────────────────────────────────────────────────────────
     if (loading && reels.length === 0) {
