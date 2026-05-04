@@ -221,9 +221,33 @@ export default function ReelsScreen() {
     // ─── Loading State ────────────────────────────────────────────────────────
     if (loading && reels.length === 0) {
         return (
-            <View style={[styles.loadingContainer, { backgroundColor: '#000' }]}>
-                <ActivityIndicator size="large" color="#10b981" />
-                <Text style={styles.loadingText}>Loading Reels...</Text>
+            <View style={[styles.loadingContainer, { backgroundColor: '#ffffff' }]}>
+                <MotiView
+                    from={{ opacity: 0.4 }}
+                    animate={{ opacity: 1 }}
+                    transition={{
+                        type: 'timing',
+                        duration: 800,
+                        loop: true,
+                    }}
+                    style={{ flex: 1, width: '100%', padding: 20, justifyContent: 'flex-end' }}
+                >
+                    {/* Skeleton Bottom Info */}
+                    <View style={{ marginBottom: Platform.OS === 'ios' ? 100 : 80, width: '75%' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 15 }}>
+                            <View style={{ width: 36, height: 36, backgroundColor: '#e0e0e0', borderRadius: 18 }} />
+                            <View style={{ width: 120, height: 18, backgroundColor: '#e0e0e0', borderRadius: 4 }} />
+                        </View>
+                        <View style={{ width: '100%', height: 14, backgroundColor: '#e0e0e0', borderRadius: 4, marginBottom: 8 }} />
+                        <View style={{ width: '85%', height: 14, backgroundColor: '#e0e0e0', borderRadius: 4, marginBottom: 8 }} />
+                        <View style={{ width: '40%', height: 14, backgroundColor: '#e0e0e0', borderRadius: 4 }} />
+                    </View>
+
+                    {/* Skeleton Action Buttons (Right Side) */}
+                    <View style={{ position: 'absolute', right: 20, bottom: Platform.OS === 'ios' ? 120 : 100, gap: 24, alignItems: 'center' }}>
+                        <View style={{ width: 40, height: 40, backgroundColor: '#e0e0e0', borderRadius: 20 }} />
+                    </View>
+                </MotiView>
             </View>
         );
     }
