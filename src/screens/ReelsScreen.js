@@ -168,6 +168,9 @@ export default function ReelsScreen() {
                                             mediaPlaybackRequiresUserAction: false,
                                             allowsInlineMediaPlayback: true,
                                             androidLayerType: 'hardware',
+                                            scrollEnabled: false,
+                                            nestedScrollEnabled: false,
+                                            overScrollMode: 'never',
                                         }}
                                         webViewStyle={{ opacity: 0.99 }}
                                     />
@@ -314,6 +317,7 @@ export default function ReelsScreen() {
                     <FlatList
                         ref={flatListRef}
                         data={reels}
+                        extraData={currentIndex}
                         renderItem={renderReel}
                         keyExtractor={(item, index) => item.id + '_' + index}
                         pagingEnabled
