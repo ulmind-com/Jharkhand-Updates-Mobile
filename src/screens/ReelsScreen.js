@@ -16,8 +16,9 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
-const ReelItem = React.memo(({ item, index, isActive, containerHeight, videoRefs, handleShare, selectedState }) => {
+const ReelItem = React.memo(({ item, index, isActive, currentIndex, containerHeight, videoRefs, handleShare, selectedState }) => {
     const [isPaused, setIsPaused] = useState(false);
+    const isNearActive = Math.abs(index - currentIndex) <= 1;
 
     useEffect(() => {
         if (!isActive) setIsPaused(false);
@@ -69,9 +70,10 @@ const ReelItem = React.memo(({ item, index, isActive, containerHeight, videoRefs
                         style={[styles.video, { opacity: isActive ? 0 : 1 }]}
                         resizeMode="cover"
                     />
-                    {isActive && (
+                    {/* Always load iframe if near active to prevent mount delays, but only show when active */}
+                    {isNearActive && (
                         Platform.OS === 'web' ? (
-                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]} pointerEvents="auto">
+                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', opacity: isActive ? 1 : 0 }]} pointerEvents="auto">
                                 <iframe
                                     src={`https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`}
                                     style={{ width: '100%', height: '100%', border: 'none', objectFit: 'contain' }}
@@ -79,13 +81,13 @@ const ReelItem = React.memo(({ item, index, isActive, containerHeight, videoRefs
                                 />
                             </View>
                         ) : (
-                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]} pointerEvents="none">
+                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', opacity: isActive ? 1 : 0 }]} pointerEvents="none">
                                 <YoutubePlayer
                                     key={`yt_${item.youtubeVideoId}_${index}`}
                                     height={containerHeight > 0 ? containerHeight : SCREEN_HEIGHT}
                                     width={SCREEN_WIDTH}
                                     videoId={item.youtubeVideoId}
-                                    play={!isPaused}
+                                    play={isActive && !isPaused}
                                     forceAndroidAutoplay={true}
                                     initialPlayerParams={{ modestbranding: true, controls: false, rel: false, loop: true, fs: false, playsinline: true }}
                                     webViewProps={{ mediaPlaybackRequiresUserAction: false, allowsInlineMediaPlayback: true, androidLayerType: 'hardware', scrollEnabled: false, nestedScrollEnabled: false, overScrollMode: 'never' }}
@@ -96,7 +98,7 @@ const ReelItem = React.memo(({ item, index, isActive, containerHeight, videoRefs
                     )}
                     {Platform.OS !== 'web' && (
                         <TouchableOpacity
-                            style={StyleSheet.absoluteFill}
+                            style={[StyleSheet.absoluteFill, { zIndex: 10, elevation: 10 }]}
                             activeOpacity={1}
                             onPress={() => {
                                 if (isActive) setIsPaused(prev => !prev);
@@ -247,6 +249,7 @@ export default function ReelsScreen() {
                 item={item}
                 index={index}
                 isActive={isActive}
+                currentIndex={currentIndex}
                 containerHeight={containerHeight}
                 videoRefs={videoRefs}
                 handleShare={handleShare}
