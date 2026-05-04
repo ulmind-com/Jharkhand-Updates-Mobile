@@ -1,4 +1,4 @@
-﻿import 'react-native-gesture-handler';
+import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -32,6 +32,7 @@ import PropertyDetailsScreen from './src/screens/PropertyDetailsScreen';
 import EventsScreen from './src/screens/EventsScreen';
 import PropertiesScreen from './src/screens/PropertiesScreen';
 import PromotionsScreen from './src/screens/PromotionsScreen';
+import ReelsScreen from './src/screens/ReelsScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import EmailServiceScreen from './src/screens/EmailServiceScreen';
@@ -172,6 +173,7 @@ export default function App() {
               <Stack.Screen name="CreatePromotion" component={CreatePromotionScreen} />
               <Stack.Screen name="AiChat" component={AiChatScreen} />
               <Stack.Screen name="NewsArticle" component={NewsArticleScreen} />
+              <Stack.Screen name="Reels" component={ReelsScreen} />
             </Stack.Navigator>
           </NavigationContainer>
         </LocationProvider>

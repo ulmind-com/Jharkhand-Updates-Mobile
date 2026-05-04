@@ -21,13 +21,18 @@ export default function MyPostsListScreen() {
 
     const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [isFetchingMore, setIsFetchingMore] = useState(false);
 
     useEffect(() => {
-        fetchData();
+        fetchData(0);
     }, []);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (pageNum = 0) => {
+        if (pageNum === 0) setLoading(true);
+        else setIsFetchingMore(true);
+
         try {
             let token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
             if (!token) {
@@ -36,25 +41,31 @@ export default function MyPostsListScreen() {
             }
 
             const headers = { Authorization: `Bearer ${token}` };
-            const res = await axios.get(`${BASE_URL}/user/my-content`, { headers });
+            const res = await axios.get(`${BASE_URL}/user/my-posts?category=${categoryId}&page=${pageNum}&size=10`, { headers });
 
-            let data = [];
-            if (categoryId === 'events') data = res.data.data.events || [];
-            if (categoryId === 'jobs') data = res.data.data.jobs || [];
-            if (categoryId === 'community') data = res.data.data.communityPosts || [];
-            if (categoryId === 'stateNews') data = res.data.data.stateNews || [];
-            if (categoryId === 'properties') data = res.data.data.properties || [];
+            const newPosts = res.data.data.content || [];
+            
+            if (pageNum === 0) {
+                setPosts(newPosts);
+            } else {
+                setPosts(prev => [...prev, ...newPosts]);
+            }
 
-            // Sort newest first
-            data.sort((a, b) => new Date(b.createdAt || b.postedAt || b.eventDate) - new Date(a.createdAt || a.postedAt || a.eventDate));
-            setPosts(data);
+            setHasMore(!res.data.data.last);
+            setPage(pageNum);
 
         } catch (error) {
             console.error("Error fetching category posts:", error);
             Toast.show({ type: 'error', text1: 'Failed to load data' });
         } finally {
             setLoading(false);
+            setIsFetchingMore(false);
         }
+    };
+
+    const fetchMoreData = () => {
+        if (!hasMore || isFetchingMore || loading) return;
+        fetchData(page + 1);
     };
 
     const confirmDelete = (postId) => {
@@ -181,6 +192,15 @@ export default function MyPostsListScreen() {
                     renderItem={renderPost}
                     contentContainerStyle={styles.listContainer}
                     showsVerticalScrollIndicator={false}
+                    onEndReached={fetchMoreData}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={() => 
+                        isFetchingMore ? (
+                            <View style={{ paddingVertical: 20 }}>
+                                <ActivityIndicator size="small" color={colors.primary} />
+                            </View>
+                        ) : null
+                    }
                 />
             ) : (
                 <View style={styles.centerBox}>

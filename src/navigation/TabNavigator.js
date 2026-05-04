@@ -7,7 +7,7 @@ import { Platform, View, Text, TouchableOpacity } from 'react-native';
 import { ThemeContext } from '../context/ThemeContext';
 
 import NewsScreen from '../screens/NewsScreen';
-import PropertiesScreen from '../screens/PropertiesScreen';
+import ReelsScreen from '../screens/ReelsScreen';
 import PromotionsScreen from '../screens/PromotionsScreen';
 import CommunityScreen from '../screens/CommunityScreen';
 import CreatePostModal from '../components/CreatePostModal';
@@ -53,7 +53,7 @@ export default function TabNavigator() {
                         let iconName;
                         size = 20; // Reduced size for 7 tabs
 
-                        if (route.name === 'Properties') iconName = focused ? 'home' : 'home-outline';
+                        if (route.name === 'Reels') iconName = focused ? 'play-circle' : 'play-circle-outline';
                         else if (route.name === 'State News') iconName = focused ? 'newspaper' : 'newspaper-outline';
                         else if (route.name === 'Promotions') iconName = focused ? 'megaphone' : 'megaphone-outline';
                         else if (route.name === 'More') iconName = focused ? 'menu' : 'menu-outline';
@@ -74,9 +74,9 @@ export default function TabNavigator() {
                 })}
             >
                 <Tab.Screen
-                    name="Properties"
-                    options={{ tabBarLabel: 'Properties' }}
-                    component={PropertiesScreen}
+                    name="Reels"
+                    options={{ tabBarLabel: 'Reels' }}
+                    component={ReelsScreen}
                     listeners={{ tabPress: () => { if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } }}
                 />
                 <Tab.Screen

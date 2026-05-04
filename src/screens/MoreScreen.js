@@ -34,6 +34,14 @@ export default function MoreScreen() {
                 <Text style={styles.pageTitle}>More Options</Text>
 
                 <View style={styles.menuContainer}>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => handleNavigate('Properties')}>
+                        <View style={[styles.iconBox, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#e0f2fe' }]}>
+                            <Ionicons name="home" size={24} color={isDarkMode ? '#38bdf8' : '#0284c7'} />
+                        </View>
+                        <Text style={styles.menuText}>Properties</Text>
+                        <Ionicons name="chevron-forward" size={20} color={colors.textDim} />
+                    </TouchableOpacity>
+
                     <TouchableOpacity style={styles.menuItem} onPress={() => handleNavigate('Jobs')}>
                         <View style={[styles.iconBox, { backgroundColor: isDarkMode ? colors.surfaceDeeper : '#ecfdf5' }]}>
                             <Ionicons name="briefcase" size={24} color={isDarkMode ? '#34d399' : '#059669'} />

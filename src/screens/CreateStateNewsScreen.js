@@ -25,6 +25,7 @@ export default function CreateStateNewsScreen() {
     const [content, setContent] = useState('');
     const [stateName, setStateName] = useState('');
     const [images, setImages] = useState([]);
+    const [videoFile, setVideoFile] = useState(null); // For reel uploads
     const [loading, setLoading] = useState(false);
     const [previewIndex, setPreviewIndex] = useState(0);
     const flatListRef = useRef(null);
@@ -75,7 +76,7 @@ export default function CreateStateNewsScreen() {
 
     const pickFromGallery = async () => {
         let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ImagePicker.MediaTypeOptions.All,
             allowsMultipleSelection: true,
             quality: 0.85,
             selectionLimit: 10,
@@ -85,8 +86,18 @@ export default function CreateStateNewsScreen() {
                 uri: a.uri,
                 type: a.mimeType || 'image/jpeg',
                 name: a.fileName || `img_${Date.now()}.jpg`,
+                isVideo: (a.mimeType || '').startsWith('video'),
             }));
-            setImages(prev => [...prev, ...picked]);
+            // Separate videos from images
+            const videos = picked.filter(p => p.isVideo);
+            const imgs = picked.filter(p => !p.isVideo);
+            if (videos.length > 0) {
+                setVideoFile(videos[0]); // Only 1 video per reel
+                Toast.show({ type: 'info', text1: '🎬 Video Selected', text2: 'This post will be published as a Reel.' });
+            }
+            if (imgs.length > 0) {
+                setImages(prev => [...prev, ...imgs]);
+            }
         }
     };
 
@@ -138,7 +149,7 @@ export default function CreateStateNewsScreen() {
             Toast.show({ type: 'error', text1: 'Select State', text2: 'Please select a state.' });
             return;
         }
-        if (!content.trim()) {
+        if (!content.trim() && !videoFile) {
             Toast.show({ type: 'error', text1: 'Missing Content', text2: 'Please write the news article content.' });
             return;
         }
@@ -146,21 +157,41 @@ export default function CreateStateNewsScreen() {
         setLoading(true);
         try {
             const token = Platform.OS === 'web' ? localStorage.getItem('accessToken') : await SecureStore.getItemAsync('accessToken');
-            const formData = new FormData();
-            formData.append("news", JSON.stringify({ title: title.trim(), content: content.trim(), stateName }));
-            images.forEach(img => formData.append("images", { uri: img.uri, type: img.type, name: img.name }));
 
-            const res = await axios.post(`${BASE_URL}/state-news`, formData, {
-                headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${token}` },
-            });
+            // ── SMART ROUTING ──
+            if (videoFile) {
+                // VIDEO → goes to REELS API
+                const formData = new FormData();
+                formData.append("reel", JSON.stringify({ title: title.trim(), stateName }));
+                formData.append("video", { uri: videoFile.uri, type: videoFile.type || 'video/mp4', name: videoFile.name || `reel_${Date.now()}.mp4` });
 
-            if (res.data.success) {
-                if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                Toast.show({ type: 'success', text1: '🎉 Published!', text2: 'News is now live on the feed.' });
-                setTimeout(() => navigation.navigate('Main', { screen: 'State News' }), 1200);
+                const res = await axios.post(`${BASE_URL}/reels`, formData, {
+                    headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${token}` },
+                });
+
+                if (res.data.success) {
+                    if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Toast.show({ type: 'success', text1: '🎬 Reel Published!', text2: 'Your video is now live in Reels.' });
+                    setTimeout(() => navigation.navigate('Main', { screen: 'Reels' }), 1200);
+                }
+            } else {
+                // IMAGES → goes to NEWS API (existing flow, untouched)
+                const formData = new FormData();
+                formData.append("news", JSON.stringify({ title: title.trim(), content: content.trim(), stateName }));
+                images.forEach(img => formData.append("images", { uri: img.uri, type: img.type, name: img.name }));
+
+                const res = await axios.post(`${BASE_URL}/state-news`, formData, {
+                    headers: { "Content-Type": "multipart/form-data", Authorization: `Bearer ${token}` },
+                });
+
+                if (res.data.success) {
+                    if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    Toast.show({ type: 'success', text1: '🎉 Published!', text2: 'News is now live on the feed.' });
+                    setTimeout(() => navigation.navigate('Main', { screen: 'State News' }), 1200);
+                }
             }
         } catch (err) {
-            Toast.show({ type: 'error', text1: 'Upload Failed', text2: err.response?.data?.message || 'Could not post news.' });
+            Toast.show({ type: 'error', text1: 'Upload Failed', text2: err.response?.data?.message || 'Could not post.' });
         } finally {
             setLoading(false);
         }
