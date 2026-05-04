@@ -127,13 +127,22 @@ export default function ReelsScreen() {
                     />
                 ) : item.type === 'YOUTUBE' && item.youtubeVideoId ? (
                     <View style={styles.video}>
+                        {/* Full-screen blurred thumbnail background - always visible */}
                         <Image
                             source={{ uri: item.thumbnailUrl || `https://i.ytimg.com/vi/${item.youtubeVideoId}/hqdefault.jpg` }}
-                            style={styles.video}
+                            style={[styles.video, { opacity: 0.6 }]}
+                            resizeMode="cover"
+                            blurRadius={Platform.OS === 'ios' ? 15 : 8}
+                        />
+                        {/* Sharp thumbnail on top of blurred bg */}
+                        <Image
+                            source={{ uri: item.thumbnailUrl || `https://i.ytimg.com/vi/${item.youtubeVideoId}/hqdefault.jpg` }}
+                            style={[styles.video, { opacity: isActive ? 0 : 1 }]}
                             resizeMode="cover"
                         />
+                        {/* YouTube Player - centered */}
                         {isActive && (
-                            <View style={[styles.video, { backgroundColor: '#000', justifyContent: 'center' }]} pointerEvents={Platform.OS === 'web' ? "auto" : "none"}>
+                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center' }]} pointerEvents={Platform.OS === 'web' ? "auto" : "none"}>
                                 {Platform.OS === 'web' ? (
                                     <iframe
                                         src={`https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`}
@@ -141,28 +150,33 @@ export default function ReelsScreen() {
                                         allow="autoplay; fullscreen; encrypted-media"
                                     />
                                 ) : (
-                                    <YoutubePlayer
-                                        height={containerHeight}
-                                        width={SCREEN_WIDTH}
-                                        videoId={item.youtubeVideoId}
-                                        play={isActive}
-                                        forceAndroidAutoplay={true}
-                                        initialPlayerParams={{
-                                            modestbranding: true,
-                                            controls: false,
-                                            rel: false,
-                                            loop: true,
-                                            fs: false,
-                                        }}
-                                        webViewProps={{
-                                            mediaPlaybackRequiresUserAction: false,
-                                            allowsInlineMediaPlayback: true,
-                                        }}
-                                        webViewStyle={{ opacity: 0.99 }}
-                                    />
+                                    <View style={{ width: SCREEN_WIDTH, height: Math.round(SCREEN_WIDTH * 9 / 16), overflow: 'hidden' }}>
+                                        <YoutubePlayer
+                                            height={Math.round(SCREEN_WIDTH * 9 / 16)}
+                                            width={SCREEN_WIDTH}
+                                            videoId={item.youtubeVideoId}
+                                            play={isActive}
+                                            forceAndroidAutoplay={true}
+                                            initialPlayerParams={{
+                                                modestbranding: true,
+                                                controls: false,
+                                                rel: false,
+                                                loop: true,
+                                                fs: false,
+                                            }}
+                                            webViewProps={{
+                                                mediaPlaybackRequiresUserAction: false,
+                                                allowsInlineMediaPlayback: true,
+                                            }}
+                                            webViewStyle={{ opacity: 0.99 }}
+                                        />
+                                    </View>
                                 )}
                             </View>
                         )}
+                        {/* Gradient overlays for premium look */}
+                        <View style={styles.topGradient} />
+                        <View style={styles.bottomGradient} />
                         {/* YouTube Badge */}
                         <View style={styles.ytBadge}>
                             <Ionicons name="logo-youtube" size={16} color="#FF0000" />
@@ -336,6 +350,22 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 0,
         left: 0,
+    },
+    topGradient: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 120,
+        backgroundColor: 'rgba(0,0,0,0.4)',
+    },
+    bottomGradient: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 200,
+        backgroundColor: 'rgba(0,0,0,0.5)',
     },
 
     // ─── YouTube Overlay ──────────────────────────
