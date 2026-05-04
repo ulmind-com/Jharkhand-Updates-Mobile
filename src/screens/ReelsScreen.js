@@ -16,8 +16,9 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
-const ReelItem = ({ item, index, isActive, containerHeight, videoRefs, handleShare, selectedState }) => {
+const ReelItem = ({ item, index, isActive, currentIndex, containerHeight, videoRefs, handleShare, selectedState }) => {
     const [isPaused, setIsPaused] = useState(false);
+    const isNearActive = Math.abs(index - currentIndex) <= 1;
 
     // Reset pause state when this item becomes inactive
     useEffect(() => {
@@ -69,10 +70,10 @@ const ReelItem = ({ item, index, isActive, containerHeight, videoRefs, handleSha
                         style={[styles.video, { opacity: isActive ? 0 : 1 }]}
                         resizeMode="cover"
                     />
-                    {/* YouTube Player - ONLY mount when active. forceAndroidAutoplay fires on mount so we CANNOT pre-mount */}
-                    {isActive && (
+                    {/* Pre-mount iframe if near active to prevent mount delays. Remove forceAndroidAutoplay to stop background audio. */}
+                    {isNearActive && (
                         Platform.OS === 'web' ? (
-                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]} pointerEvents="auto">
+                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', opacity: isActive ? 1 : 0 }]} pointerEvents="auto">
                                 <iframe
                                     src={`https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`}
                                     style={{ width: '100%', height: '100%', border: 'none', objectFit: 'contain' }}
@@ -80,14 +81,14 @@ const ReelItem = ({ item, index, isActive, containerHeight, videoRefs, handleSha
                                 />
                             </View>
                         ) : (
-                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }]} pointerEvents="none">
+                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', opacity: isActive ? 1 : 0 }]} pointerEvents="none">
                                 <YoutubePlayer
                                     key={`yt_active_${item.youtubeVideoId}_${index}`}
                                     height={containerHeight > 0 ? containerHeight : SCREEN_HEIGHT}
                                     width={SCREEN_WIDTH}
                                     videoId={item.youtubeVideoId}
-                                    play={!isPaused}
-                                    forceAndroidAutoplay={true}
+                                    play={isActive && !isPaused}
+                                    forceAndroidAutoplay={false}
                                     initialPlayerParams={{ modestbranding: true, controls: false, rel: false, loop: true, fs: false, playsinline: true }}
                                     webViewProps={{ mediaPlaybackRequiresUserAction: false, allowsInlineMediaPlayback: true, androidLayerType: 'hardware', scrollEnabled: false, nestedScrollEnabled: false, overScrollMode: 'never' }}
                                     webViewStyle={{ opacity: 0.99 }}
@@ -247,6 +248,7 @@ export default function ReelsScreen() {
                 item={item}
                 index={index}
                 isActive={isActive}
+                currentIndex={currentIndex}
                 containerHeight={containerHeight}
                 videoRefs={videoRefs}
                 handleShare={handleShare}
