@@ -32,6 +32,7 @@ export default function ReelsScreen() {
 
     const flatListRef = useRef(null);
     const videoRefs = useRef({});
+    const webViewRefs = useRef({});
 
     // ─── Fetch Reels ──────────────────────────────────────────────────────────
     const fetchReels = useCallback(async (pageNum = 0, isRefresh = false) => {
@@ -75,6 +76,12 @@ export default function ReelsScreen() {
             Object.values(videoRefs.current).forEach(ref => {
                 ref?.pauseAsync?.();
             });
+            Object.values(webViewRefs.current).forEach(ref => {
+                if (ref && ref.injectJavaScript) {
+                    ref.injectJavaScript(`if(window.player && player.pauseVideo) player.pauseVideo(); true;`);
+                }
+            });
+            setIsPaused(true);
         }
     }, [isFocused]);
 
@@ -85,11 +92,23 @@ export default function ReelsScreen() {
                 ref?.pauseAsync?.().catch(() => {});
             }
         });
+        Object.entries(webViewRefs.current).forEach(([idx, ref]) => {
+            if (parseInt(idx) !== currentIndex && ref) {
+                if (ref.injectJavaScript) {
+                    ref.injectJavaScript(`if(window.player && player.pauseVideo) player.pauseVideo(); true;`);
+                }
+            }
+        });
+        
         // Resume the current video after a brief delay
         const timer = setTimeout(() => {
-            const currentRef = videoRefs.current[currentIndex];
-            if (currentRef) {
-                currentRef?.playAsync?.().catch(() => {});
+            const currentVideoRef = videoRefs.current[currentIndex];
+            if (currentVideoRef) {
+                currentVideoRef?.playAsync?.().catch(() => {});
+            }
+            const currentWebViewRef = webViewRefs.current[currentIndex];
+            if (currentWebViewRef && currentWebViewRef.injectJavaScript) {
+                currentWebViewRef.injectJavaScript(`if(window.player && player.playVideo) player.playVideo(); true;`);
             }
         }, 150);
         return () => clearTimeout(timer);
@@ -125,8 +144,18 @@ export default function ReelsScreen() {
         }
     };
 
-    // ─── Tap to Pause/Play MP4 Videos ────────────────────────────────────────
-    const handleVideoPress = async (index) => {
+    // ─── Tap to Pause/Play Videos ─────────────────────────────────────────────
+    const handleVideoPress = async (index, type = 'NATIVE_MP4') => {
+        if (type === 'YOUTUBE') {
+            const ref = webViewRefs.current[index];
+            if (!ref) return;
+            setIsPaused(!isPaused);
+            if (ref.injectJavaScript) {
+                ref.injectJavaScript(`togglePlay(); true;`);
+            }
+            return;
+        }
+
         const ref = videoRefs.current[index];
         if (!ref) return;
         try {
@@ -186,52 +215,101 @@ export default function ReelsScreen() {
                 ) : item.type === 'YOUTUBE' && item.youtubeVideoId ? (
                     <View style={styles.video}>
                         {isActive ? (
-                            <View style={[styles.video, { backgroundColor: '#000', justifyContent: 'center' }]} pointerEvents={Platform.OS === 'web' ? "auto" : "none"}>
+                            <View style={[styles.video, { backgroundColor: '#000', justifyContent: 'center' }]}>
                                 {Platform.OS === 'web' ? (
-                                    React.createElement('iframe', {
-                                        src: `https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`,
-                                        style: { width: '100%', height: '100%', border: 'none', objectFit: 'contain' },
-                                        allow: "autoplay; fullscreen; encrypted-media"
-                                    })
+                                    <View pointerEvents="auto" style={{ flex: 1 }}>
+                                        {React.createElement('iframe', {
+                                            src: `https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`,
+                                            style: { width: '100%', height: '100%', border: 'none', objectFit: 'contain' },
+                                            allow: "autoplay; fullscreen; encrypted-media"
+                                        })}
+                                    </View>
                                 ) : (
-                                    <WebView
-                                        source={{
-                                            html: `
-                                                <!DOCTYPE html>
-                                                <html>
-                                                <head>
-                                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                                                    <style>
-                                                        * { margin: 0; padding: 0; box-sizing: border-box; }
-                                                        html, body { 
-                                                            width: 100vw; height: 100vh; 
-                                                            background-color: #000; overflow: hidden; 
-                                                            display: flex; justify-content: center; align-items: center; 
-                                                        }
-                                                        iframe { 
-                                                            width: 100%; height: 100%; border: none; 
-                                                        }
-                                                    </style>
-                                                </head>
-                                                <body>
-                                                    <iframe 
-                                                        src="https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}" 
-                                                        allow="autoplay; fullscreen; encrypted-media"
-                                                    ></iframe>
-                                                </body>
-                                                </html>
-                                            `,
-                                            baseUrl: 'https://jharkhandbiharupdates.com'
-                                        }}
-                                        style={{ flex: 1, backgroundColor: '#000' }}
-                                        allowsInlineMediaPlayback={true}
-                                        mediaPlaybackRequiresUserAction={false}
-                                        javaScriptEnabled={true}
-                                        scrollEnabled={false}
-                                        bounces={false}
-                                        overScrollMode="never"
-                                        setSupportMultipleWindows={false}
-                                    />
+                                    <>
+                                        <WebView
+                                            ref={ref => { webViewRefs.current[index] = ref; }}
+                                            source={{
+                                                html: `
+                                                    <!DOCTYPE html>
+                                                    <html>
+                                                    <head>
+                                                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                                                        <style>
+                                                            * { margin: 0; padding: 0; box-sizing: border-box; }
+                                                            html, body { 
+                                                                width: 100vw; height: 100vh; 
+                                                                background-color: #000; overflow: hidden; 
+                                                                display: flex; justify-content: center; align-items: center; 
+                                                            }
+                                                            #player { width: 100%; height: 100%; border: none; }
+                                                        </style>
+                                                    </head>
+                                                    <body>
+                                                        <div id="player"></div>
+                                                        <script>
+                                                            var player;
+                                                            var tag = document.createElement('script');
+                                                            tag.src = "https://www.youtube.com/iframe_api";
+                                                            var firstScriptTag = document.getElementsByTagName('script')[0];
+                                                            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+                                                            function onYouTubeIframeAPIReady() {
+                                                                player = new YT.Player('player', {
+                                                                    height: '100%',
+                                                                    width: '100%',
+                                                                    videoId: '${item.youtubeVideoId}',
+                                                                    playerVars: {
+                                                                        'autoplay': 1, 'controls': 0, 'modestbranding': 1,
+                                                                        'rel': 0, 'playsinline': 1, 'loop': 1,
+                                                                        'playlist': '${item.youtubeVideoId}', 'showinfo': 0,
+                                                                        'fs': 0, 'disablekb': 1
+                                                                    },
+                                                                    events: {
+                                                                        'onReady': function(event) { event.target.playVideo(); }
+                                                                    }
+                                                                });
+                                                            }
+                                                            function togglePlay() {
+                                                                if (player && player.getPlayerState) {
+                                                                    var state = player.getPlayerState();
+                                                                    if (state === 1) { player.pauseVideo(); return "paused"; }
+                                                                    else { player.playVideo(); return "playing"; }
+                                                                }
+                                                                return "error";
+                                                            }
+                                                        </script>
+                                                    </body>
+                                                    </html>
+                                                `,
+                                                baseUrl: 'https://jharkhandbiharupdates.com'
+                                            }}
+                                            style={{ flex: 1, backgroundColor: '#000' }}
+                                            allowsInlineMediaPlayback={true}
+                                            mediaPlaybackRequiresUserAction={false}
+                                            javaScriptEnabled={true}
+                                            scrollEnabled={false}
+                                            bounces={false}
+                                            overScrollMode="never"
+                                            setSupportMultipleWindows={false}
+                                        />
+                                        <TouchableOpacity
+                                            activeOpacity={1}
+                                            onPress={() => handleVideoPress(index, 'YOUTUBE')}
+                                            style={StyleSheet.absoluteFill}
+                                        >
+                                            {isPaused && (
+                                                <MotiView
+                                                    from={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    transition={{ type: 'timing', duration: 200 }}
+                                                    style={styles.pauseOverlay}
+                                                >
+                                                    <View style={styles.pauseIconBg}>
+                                                        <Ionicons name="play" size={40} color="#fff" />
+                                                    </View>
+                                                </MotiView>
+                                            )}
+                                        </TouchableOpacity>
+                                    </>
                                 )}
                             </View>
                         ) : (
