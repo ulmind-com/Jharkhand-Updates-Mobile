@@ -11,144 +11,10 @@ import { MotiView } from 'moti';
 import { useLocation } from '../context/LocationContext';
 import { ThemeContext } from '../context/ThemeContext';
 import axios from 'axios';
-import YoutubePlayer from 'react-native-youtube-iframe';
+import { WebView } from 'react-native-webview';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
-
-const ReelItem = ({ item, index, isActive, currentIndex, containerHeight, videoRefs, handleShare, selectedState }) => {
-    const [isPaused, setIsPaused] = useState(false);
-    const isNearActive = Math.abs(index - currentIndex) <= 1;
-
-    // Reset pause state when this item becomes inactive
-    useEffect(() => {
-        if (!isActive) setIsPaused(false);
-    }, [isActive]);
-
-    const shouldPlay = isActive && !isPaused;
-
-    return (
-        <View style={[styles.reelContainer, { height: containerHeight }]}>
-            {item.type === 'NATIVE_MP4' && item.videoUrl ? (
-                <View style={styles.video}>
-                    <Video
-                        ref={ref => { videoRefs.current[index] = ref; }}
-                        source={{ uri: item.videoUrl }}
-                        style={styles.video}
-                        resizeMode={ResizeMode.COVER}
-                        shouldPlay={shouldPlay}
-                        isLooping
-                        isMuted={false}
-                        useNativeControls={false}
-                    />
-                    {Platform.OS !== 'web' && (
-                        <TouchableOpacity
-                            style={[StyleSheet.absoluteFill, { zIndex: 10, elevation: 10 }]}
-                            activeOpacity={1}
-                            onPress={() => { if (isActive) setIsPaused(prev => !prev); }}
-                        >
-                            {isActive && isPaused && (
-                                <View style={styles.pauseOverlay}>
-                                    <Ionicons name="play" size={64} color="rgba(255,255,255,0.85)" />
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    )}
-                </View>
-            ) : item.type === 'YOUTUBE' && item.youtubeVideoId ? (
-                <View style={styles.video}>
-                    {/* Blurred background thumbnail */}
-                    <Image
-                        source={{ uri: item.thumbnailUrl || `https://i.ytimg.com/vi/${item.youtubeVideoId}/hqdefault.jpg` }}
-                        style={[styles.video, { opacity: 0.6 }]}
-                        resizeMode="cover"
-                        blurRadius={Platform.OS === 'ios' ? 15 : 8}
-                    />
-                    {/* Sharp thumbnail - show when NOT active */}
-                    <Image
-                        source={{ uri: item.thumbnailUrl || `https://i.ytimg.com/vi/${item.youtubeVideoId}/hqdefault.jpg` }}
-                        style={[styles.video, { opacity: isActive ? 0 : 1 }]}
-                        resizeMode="cover"
-                    />
-                    {/* Pre-mount iframe if near active to prevent mount delays. Remove forceAndroidAutoplay to stop background audio. */}
-                    {isNearActive && (
-                        Platform.OS === 'web' ? (
-                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', opacity: isActive ? 1 : 0 }]} pointerEvents="auto">
-                                <iframe
-                                    src={`https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`}
-                                    style={{ width: '100%', height: '100%', border: 'none', objectFit: 'contain' }}
-                                    allow="autoplay; fullscreen; encrypted-media"
-                                />
-                            </View>
-                        ) : (
-                            <View style={[styles.video, { justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', opacity: isActive ? 1 : 0 }]} pointerEvents="none">
-                                <YoutubePlayer
-                                    key={`yt_active_${item.youtubeVideoId}_${index}`}
-                                    height={containerHeight > 0 ? containerHeight : SCREEN_HEIGHT}
-                                    width={SCREEN_WIDTH}
-                                    videoId={item.youtubeVideoId}
-                                    play={isActive && !isPaused}
-                                    forceAndroidAutoplay={false}
-                                    initialPlayerParams={{ modestbranding: true, controls: false, rel: false, loop: true, fs: false, playsinline: true }}
-                                    webViewProps={{ mediaPlaybackRequiresUserAction: false, allowsInlineMediaPlayback: true, androidLayerType: 'hardware', scrollEnabled: false, nestedScrollEnabled: false, overScrollMode: 'never' }}
-                                    webViewStyle={{ opacity: 0.99 }}
-                                />
-                            </View>
-                        )
-                    )}
-                    {/* Tap overlay for native only */}
-                    {Platform.OS !== 'web' && (
-                        <TouchableOpacity
-                            style={[StyleSheet.absoluteFill, { zIndex: 10, elevation: 10 }]}
-                            activeOpacity={1}
-                            onPress={() => { if (isActive) setIsPaused(prev => !prev); }}
-                        >
-                            {isActive && isPaused && (
-                                <View style={styles.pauseOverlay}>
-                                    <Ionicons name="play" size={64} color="rgba(255,255,255,0.85)" />
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    )}
-                    <View style={styles.topGradient} pointerEvents="none" />
-                    <View style={styles.bottomGradient} pointerEvents="none" />
-                    <View style={styles.ytBadge}>
-                        <Ionicons name="logo-youtube" size={16} color="#FF0000" />
-                        <Text style={styles.ytBadgeText}>YouTube</Text>
-                    </View>
-                </View>
-            ) : (
-                <View style={[styles.video, { backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' }]}>
-                    <Ionicons name="videocam-off-outline" size={48} color="#555" />
-                </View>
-            )}
-
-            <View style={styles.bottomOverlay} pointerEvents="box-none">
-                <View style={styles.sourceRow}>
-                    {item.sourceLogo && <Image source={{ uri: item.sourceLogo }} style={styles.sourceLogo} />}
-                    <Text style={styles.sourceName} numberOfLines={1}>{item.sourceName || item.author || 'Unknown'}</Text>
-                    {item.type === 'NATIVE_MP4' && (
-                        <View style={styles.exclusiveBadge}><Text style={styles.exclusiveText}>EXCLUSIVE</Text></View>
-                    )}
-                </View>
-                <Text style={styles.reelTitle} numberOfLines={3}>{item.title}</Text>
-                <View style={styles.stateBadge}>
-                    <Ionicons name="location" size={12} color="#10b981" />
-                    <Text style={styles.stateText}>{item.stateName || selectedState}</Text>
-                </View>
-            </View>
-
-            <View style={styles.actionColumn} pointerEvents="box-none">
-                <TouchableOpacity style={styles.actionBtn} onPress={() => handleShare(item)}>
-                    <MotiView from={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: 'spring', delay: 200 }}>
-                        <Ionicons name="share-social" size={28} color="#fff" />
-                        <Text style={styles.actionText}>Share</Text>
-                    </MotiView>
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
-};
 
 export default function ReelsScreen() {
     const { selectedState } = useLocation();
@@ -162,7 +28,7 @@ export default function ReelsScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [containerHeight, setContainerHeight] = useState(0);
+    const [isPaused, setIsPaused] = useState(false);
 
     const flatListRef = useRef(null);
     const videoRefs = useRef({});
@@ -212,6 +78,23 @@ export default function ReelsScreen() {
         }
     }, [isFocused]);
 
+    // Pause previous videos and play current when scrolling
+    useEffect(() => {
+        Object.entries(videoRefs.current).forEach(([idx, ref]) => {
+            if (parseInt(idx) !== currentIndex && ref) {
+                ref?.pauseAsync?.().catch(() => {});
+            }
+        });
+        // Resume the current video after a brief delay
+        const timer = setTimeout(() => {
+            const currentRef = videoRefs.current[currentIndex];
+            if (currentRef) {
+                currentRef?.playAsync?.().catch(() => {});
+            }
+        }, 150);
+        return () => clearTimeout(timer);
+    }, [currentIndex]);
+
     const onRefresh = () => fetchReels(0, true);
     const loadMore = () => {
         if (hasMore && !loading) {
@@ -219,13 +102,14 @@ export default function ReelsScreen() {
         }
     };
 
-    const onViewableItemsChanged = useCallback(({ viewableItems }) => {
-        if (viewableItems.length > 0 && viewableItems[0].index != null) {
+    const onViewableItemsChanged = useRef(({ viewableItems }) => {
+        if (viewableItems.length > 0) {
             setCurrentIndex(viewableItems[0].index);
+            setIsPaused(false);
         }
-    }, []);
+    }).current;
 
-    const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
+    const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 80 }).current;
 
     const handleShare = async (item) => {
         try {
@@ -241,19 +125,175 @@ export default function ReelsScreen() {
         }
     };
 
+    // ─── Tap to Pause/Play MP4 Videos ────────────────────────────────────────
+    const handleVideoPress = async (index) => {
+        const ref = videoRefs.current[index];
+        if (!ref) return;
+        try {
+            const status = await ref.getStatusAsync();
+            if (status.isPlaying) {
+                await ref.pauseAsync();
+                setIsPaused(true);
+            } else {
+                await ref.playAsync();
+                setIsPaused(false);
+            }
+        } catch (e) {
+            console.log('Video toggle error:', e);
+        }
+    };
+
+    // ─── Render a single Reel ─────────────────────────────────────────────────
     const renderReel = ({ item, index }) => {
         const isActive = index === currentIndex && isFocused;
+
         return (
-            <ReelItem
-                item={item}
-                index={index}
-                isActive={isActive}
-                currentIndex={currentIndex}
-                containerHeight={containerHeight}
-                videoRefs={videoRefs}
-                handleShare={handleShare}
-                selectedState={selectedState}
-            />
+            <View style={styles.reelContainer}>
+                {/* Video / YouTube Thumbnail */}
+                {item.type === 'NATIVE_MP4' && item.videoUrl ? (
+                    <View style={styles.video}>
+                        <Video
+                            ref={ref => { videoRefs.current[index] = ref; }}
+                            source={{ uri: item.videoUrl }}
+                            style={StyleSheet.absoluteFill}
+                            resizeMode={ResizeMode.CONTAIN}
+                            shouldPlay={isActive && !isPaused}
+                            isLooping
+                            isMuted={false}
+                            useNativeControls={false}
+                        />
+                        {/* Tap overlay - sits ON TOP of video to capture clicks */}
+                        <TouchableOpacity
+                            activeOpacity={1}
+                            onPress={() => handleVideoPress(index)}
+                            style={StyleSheet.absoluteFill}
+                        >
+                            {/* Pause/Play Icon Overlay */}
+                            {isActive && isPaused && (
+                                <MotiView
+                                    from={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ type: 'timing', duration: 200 }}
+                                    style={styles.pauseOverlay}
+                                >
+                                    <View style={styles.pauseIconBg}>
+                                        <Ionicons name="play" size={40} color="#fff" />
+                                    </View>
+                                </MotiView>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                ) : item.type === 'YOUTUBE' && item.youtubeVideoId ? (
+                    <View style={styles.video}>
+                        {isActive ? (
+                            <View style={[styles.video, { backgroundColor: '#000', justifyContent: 'center' }]} pointerEvents={Platform.OS === 'web' ? "auto" : "none"}>
+                                {Platform.OS === 'web' ? (
+                                    React.createElement('iframe', {
+                                        src: `https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}`,
+                                        style: { width: '100%', height: '100%', border: 'none', objectFit: 'contain' },
+                                        allow: "autoplay; fullscreen; encrypted-media"
+                                    })
+                                ) : (
+                                    <WebView
+                                        source={{
+                                            html: `
+                                                <!DOCTYPE html>
+                                                <html>
+                                                <head>
+                                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                                                    <style>
+                                                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                                                        html, body { 
+                                                            width: 100vw; height: 100vh; 
+                                                            background-color: #000; overflow: hidden; 
+                                                            display: flex; justify-content: center; align-items: center; 
+                                                        }
+                                                        iframe { 
+                                                            width: 100%; height: 100%; border: none; 
+                                                        }
+                                                    </style>
+                                                </head>
+                                                <body>
+                                                    <iframe 
+                                                        src="https://www.youtube.com/embed/${item.youtubeVideoId}?autoplay=1&controls=0&modestbranding=1&rel=0&playsinline=1&loop=1&playlist=${item.youtubeVideoId}" 
+                                                        allow="autoplay; fullscreen; encrypted-media"
+                                                    ></iframe>
+                                                </body>
+                                                </html>
+                                            `,
+                                            baseUrl: 'https://jharkhandbiharupdates.com'
+                                        }}
+                                        style={{ flex: 1, backgroundColor: '#000' }}
+                                        allowsInlineMediaPlayback={true}
+                                        mediaPlaybackRequiresUserAction={false}
+                                        javaScriptEnabled={true}
+                                        scrollEnabled={false}
+                                        bounces={false}
+                                        overScrollMode="never"
+                                        setSupportMultipleWindows={false}
+                                    />
+                                )}
+                            </View>
+                        ) : (
+                            <Image
+                                source={{ uri: item.thumbnailUrl || `https://i.ytimg.com/vi/${item.youtubeVideoId}/hqdefault.jpg` }}
+                                style={styles.video}
+                                resizeMode="cover"
+                            />
+                        )}
+                        {/* YouTube Badge */}
+                        <View style={styles.ytBadge}>
+                            <Ionicons name="logo-youtube" size={16} color="#FF0000" />
+                            <Text style={styles.ytBadgeText}>YouTube</Text>
+                        </View>
+                    </View>
+                ) : (
+                    <View style={[styles.video, { backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' }]}>
+                        <Ionicons name="videocam-off-outline" size={48} color="#555" />
+                    </View>
+                )}
+
+                {/* Overlay: Bottom Info */}
+                <View style={styles.bottomOverlay} pointerEvents="box-none">
+                    {/* Source Logo + Name */}
+                    <View style={styles.sourceRow}>
+                        {item.sourceLogo && (
+                            <Image source={{ uri: item.sourceLogo }} style={styles.sourceLogo} />
+                        )}
+                        <Text style={styles.sourceName} numberOfLines={1}>
+                            {item.sourceName || item.author || 'Unknown'}
+                        </Text>
+                        {item.type === 'NATIVE_MP4' && (
+                            <View style={styles.exclusiveBadge}>
+                                <Text style={styles.exclusiveText}>EXCLUSIVE</Text>
+                            </View>
+                        )}
+                    </View>
+                    {/* Title */}
+                    <Text style={styles.reelTitle} numberOfLines={3}>
+                        {item.title}
+                    </Text>
+                    {/* State badge */}
+                    <View style={styles.stateBadge}>
+                        <Ionicons name="location" size={12} color="#10b981" />
+                        <Text style={styles.stateText}>{item.stateName || selectedState}</Text>
+                    </View>
+                </View>
+
+                {/* Right Action Buttons */}
+                <View style={styles.actionColumn} pointerEvents="box-none">
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => handleShare(item)}>
+                        <MotiView
+                            from={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: 'spring', delay: 200 }}
+                        >
+                            <Ionicons name="share-social" size={28} color="#fff" />
+                            <Text style={styles.actionText}>Share</Text>
+                        </MotiView>
+                    </TouchableOpacity>
+                </View>
+            </View>
         );
     };
 
@@ -324,38 +364,31 @@ export default function ReelsScreen() {
                 </View>
             </SafeAreaView>
 
-            {/* Measure the available space first, then render FlatList */}
-            <View
-                style={{ flex: 1 }}
-                onLayout={(e) => {
-                    const h = e.nativeEvent.layout.height;
-                    if (h > 0 && containerHeight === 0) {
-                        setContainerHeight(h);
-                    }
-                }}
-            >
-                {containerHeight > 0 && (
-                    <FlatList
-                        ref={flatListRef}
-                        data={reels}
-                        extraData={currentIndex}
-                        renderItem={renderReel}
-                        keyExtractor={(item, index) => item.id + '_' + index}
-                        pagingEnabled
-                        showsVerticalScrollIndicator={false}
-                        decelerationRate="fast"
-                        onViewableItemsChanged={onViewableItemsChanged}
-                        viewabilityConfig={viewabilityConfig}
-                        onEndReached={loadMore}
-                        onEndReachedThreshold={0.5}
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        initialNumToRender={2}
-                        maxToRenderPerBatch={3}
-                        windowSize={5}
-                    />
-                )}
-            </View>
+            <FlatList
+                ref={flatListRef}
+                data={reels}
+                renderItem={renderReel}
+                keyExtractor={(item, index) => item.id + '_' + index}
+                pagingEnabled
+                showsVerticalScrollIndicator={false}
+                snapToAlignment="start"
+                snapToInterval={SCREEN_HEIGHT}
+                decelerationRate="fast"
+                onViewableItemsChanged={onViewableItemsChanged}
+                viewabilityConfig={viewabilityConfig}
+                onEndReached={loadMore}
+                onEndReachedThreshold={0.5}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                getItemLayout={(data, index) => ({
+                    length: SCREEN_HEIGHT,
+                    offset: SCREEN_HEIGHT * index,
+                    index,
+                })}
+                initialNumToRender={2}
+                maxToRenderPerBatch={3}
+                windowSize={5}
+            />
         </View>
     );
 }
@@ -383,21 +416,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: 'rgba(0,0,0,0.3)',
     },
-    topGradient: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 120,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-    },
-    bottomGradient: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: 200,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+    pauseIconBg: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.3)',
     },
 
     // ─── YouTube Overlay ──────────────────────────

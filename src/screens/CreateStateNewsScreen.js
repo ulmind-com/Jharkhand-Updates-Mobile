@@ -48,8 +48,8 @@ export default function CreateStateNewsScreen() {
     }, [step]);
 
     const goToStep1 = () => {
-        if (images.length === 0) {
-            Alert.alert("Select Image", "Please select at least one image to continue.");
+        if (images.length === 0 && !videoFile) {
+            Alert.alert("Select Media", "Please select at least one image or a video to continue.");
             return;
         }
         if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -242,11 +242,23 @@ export default function CreateStateNewsScreen() {
             )}
 
             {/* Big Preview or Empty State */}
-            {images.length === 0 ? (
+            {images.length === 0 && !videoFile ? (
                 <View style={styles.emptyPickerArea}>
                     <Ionicons name="images-outline" size={80} color="#d1fae5" />
-                    <Text style={styles.emptyPickerTitle}>Add Photos</Text>
+                    <Text style={styles.emptyPickerTitle}>Add Photos or Video</Text>
                     <Text style={styles.emptyPickerSub}>Pick from gallery or use camera</Text>
+                </View>
+            ) : videoFile ? (
+                <View style={styles.emptyPickerArea}>
+                    <Ionicons name="videocam" size={80} color="#10b981" />
+                    <Text style={styles.emptyPickerTitle}>Reel Selected</Text>
+                    <Text style={styles.emptyPickerSub}>{videoFile.name || 'Video will be published as a Reel'}</Text>
+                    <TouchableOpacity 
+                        style={{ marginTop: 16, backgroundColor: '#fee2e2', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}
+                        onPress={() => setVideoFile(null)}
+                    >
+                        <Text style={{ color: '#ef4444', fontWeight: 'bold' }}>Remove Video</Text>
+                    </TouchableOpacity>
                 </View>
             ) : (
                 <View style={styles.swiperWrap}>
@@ -402,9 +414,9 @@ export default function CreateStateNewsScreen() {
                 <Text style={styles.headerTitle}>Post State News</Text>
                 {step === 0 ? (
                     <TouchableOpacity
-                        style={[styles.nextBtn, images.length === 0 && { opacity: 0.4 }]}
+                        style={[styles.nextBtn, (images.length === 0 && !videoFile) && { opacity: 0.4 }]}
                         onPress={goToStep1}
-                        disabled={images.length === 0}
+                        disabled={images.length === 0 && !videoFile}
                     >
                         <Text style={styles.nextBtnText}>Next</Text>
                         <Ionicons name="arrow-forward" size={18} color="#10b981" />

@@ -61,6 +61,7 @@ export default function MyPostsScreen() {
 
     if (role === 'admin') {
         categories.push({ id: 'stateNews', label: 'State News', icon: 'newspaper', color: '#10b981' });
+        categories.push({ id: 'reels', label: 'Reels', icon: 'videocam', color: '#10b981' });
     }
 
     const handleSelectCategory = (category) => {

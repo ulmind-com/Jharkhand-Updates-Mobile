@@ -95,6 +95,7 @@ export default function MyPostsListScreen() {
             if (categoryId === 'events') endpoint = `${BASE_URL}/events/${postId}`;
             if (categoryId === 'properties') endpoint = `${BASE_URL}/properties/${postId}`;
             if (categoryId === 'stateNews') endpoint = `${BASE_URL}/state-news/${postId}`;
+            if (categoryId === 'reels') endpoint = `${BASE_URL}/reels/${postId}`;
 
             await axios.delete(endpoint, { headers });
             setPosts(prev => prev.filter(p => p.id !== postId));
@@ -117,6 +118,7 @@ export default function MyPostsListScreen() {
         else if (categoryId === 'events') navigation.navigate('EventDetails', { eventId: item.id });
         else if (categoryId === 'properties') navigation.navigate('PropertyDetails', { propertyId: item.id });
         else if (categoryId === 'stateNews') navigation.navigate('StateNewsDetails', { newsId: item.id });
+        else if (categoryId === 'reels') navigation.navigate('Main', { screen: 'Reels' });
     };
 
     const renderPost = ({ item }) => {
@@ -128,6 +130,7 @@ export default function MyPostsListScreen() {
         if (categoryId === 'events') prefixIcon = '🔥 ';
         if (categoryId === 'properties') prefixIcon = '🏠 ';
         if (categoryId === 'jobs') prefixIcon = '💼 ';
+        if (categoryId === 'reels') prefixIcon = '🎬 ';
 
         const isPending = item.status === 'PENDING';
 

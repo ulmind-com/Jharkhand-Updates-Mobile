@@ -86,14 +86,32 @@
                       "group.com.jharkhand.app.onesignal"
                     ]
                   }
+                },
+                {
+                  "targetName": "OneSignalNotificationServiceExtension",
+                  "bundleIdentifier": "com.jharkhand.app.OneSignalNotificationServiceExtension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.jharkhand.app.onesignal"
+                    ]
+                  }
+                },
+                {
+                  "targetName": "OneSignalNotificationServiceExtension",
+                  "bundleIdentifier": "com.jharkhand.app.OneSignalNotificationServiceExtension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.jharkhand.app.onesignal"
+                    ]
+                  }
                 }
               ]
             }
           }
         },
-        "projectId": "827b4e8c-45ac-4466-80b2-e72e46898ccb"
+        "projectId": "78ab2a93-ba61-467c-b768-d0d6abbd9519"
       }
     },
-    "owner": "jh-update"
+    "owner": "newsomedia"
   }
 }
