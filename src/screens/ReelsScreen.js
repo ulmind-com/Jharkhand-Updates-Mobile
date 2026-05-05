@@ -181,36 +181,40 @@ export default function ReelsScreen() {
                 {/* Video / YouTube Thumbnail */}
                 {item.type === 'NATIVE_MP4' && item.videoUrl ? (
                     <View style={styles.video}>
-                        <Video
-                            ref={ref => { videoRefs.current[index] = ref; }}
-                            source={{ uri: item.videoUrl }}
-                            style={StyleSheet.absoluteFill}
-                            resizeMode={ResizeMode.CONTAIN}
-                            shouldPlay={isActive && !isPaused}
-                            isLooping
-                            isMuted={false}
-                            useNativeControls={false}
-                        />
-                        {/* Tap overlay - sits ON TOP of video to capture clicks */}
-                        <TouchableOpacity
-                            activeOpacity={1}
-                            onPress={() => handleVideoPress(index)}
-                            style={StyleSheet.absoluteFill}
-                        >
-                            {/* Pause/Play Icon Overlay */}
-                            {isActive && isPaused && (
-                                <MotiView
-                                    from={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{ type: 'timing', duration: 200 }}
-                                    style={styles.pauseOverlay}
+                        {isFocused && (
+                            <>
+                                <Video
+                                    ref={ref => { videoRefs.current[index] = ref; }}
+                                    source={{ uri: item.videoUrl }}
+                                    style={StyleSheet.absoluteFill}
+                                    resizeMode={ResizeMode.CONTAIN}
+                                    shouldPlay={isActive && !isPaused}
+                                    isLooping
+                                    isMuted={false}
+                                    useNativeControls={false}
+                                />
+                                {/* Tap overlay - sits ON TOP of video to capture clicks */}
+                                <TouchableOpacity
+                                    activeOpacity={1}
+                                    onPress={() => handleVideoPress(index)}
+                                    style={StyleSheet.absoluteFill}
                                 >
-                                    <View style={styles.pauseIconBg}>
-                                        <Ionicons name="play" size={40} color="#fff" />
-                                    </View>
-                                </MotiView>
-                            )}
-                        </TouchableOpacity>
+                                    {/* Pause/Play Icon Overlay */}
+                                    {isActive && isPaused && (
+                                        <MotiView
+                                            from={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ type: 'timing', duration: 200 }}
+                                            style={styles.pauseOverlay}
+                                        >
+                                            <View style={styles.pauseIconBg}>
+                                                <Ionicons name="play" size={40} color="#fff" />
+                                            </View>
+                                        </MotiView>
+                                    )}
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 ) : item.type === 'YOUTUBE' && item.youtubeVideoId ? (
                     <View style={styles.video}>
