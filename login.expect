@@ -1,0 +1,7 @@
+#!/usr/bin/expect -f
+spawn npx eas-cli login
+expect "Email or username"
+send "linkedin10\r"
+expect "Password"
+send "j%!7R$?P2n#pB,^\r"
+expect eof
