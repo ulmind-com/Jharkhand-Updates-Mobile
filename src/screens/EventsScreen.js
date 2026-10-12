@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Vibration, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Linking, TextInput, RefreshControl } from 'react-native';
@@ -10,6 +10,7 @@ import { View as MotiView } from 'moti';
 import { EventSkeleton } from '../components/Skeletons';
 import { useNavigation } from '@react-navigation/native';
 import { ThemeContext } from '../context/ThemeContext';
+import AdBannerCard from '../components/AdBannerCard';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
@@ -66,6 +67,21 @@ export default function EventsScreen() {
         event.location?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    // Build events feed with AdMob banner ads every 5 items
+    const feedWithAds = useMemo(() => {
+        const result = [];
+        filteredEvents.forEach((event, idx) => {
+            result.push({ ...event, _adType: 'event' });
+            if ((idx + 1) % 3 === 0) {
+                result.push({
+                    _adType: 'admob_banner',
+                    _id: `admob_events_${idx}_${Date.now()}`,
+                });
+            }
+        });
+        return result;
+    }, [filteredEvents]);
+
     const isEventOver = (eventDate, endDate) => {
         const dateToCheck = endDate || eventDate;
         if (!dateToCheck) return false;
@@ -80,6 +96,9 @@ export default function EventsScreen() {
     };
 
     const renderEvent = ({ item }) => {
+        if (item._adType === 'admob_banner') {
+            return <AdBannerCard type="events" />;
+        }
         const expired = isEventOver(item.eventDate, item.endDate);
         const dateStr = item.eventDate ? new Date(item.eventDate).toLocaleDateString() : '';
         const timeStr = item.eventDate ? new Date(item.eventDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
@@ -209,8 +228,11 @@ export default function EventsScreen() {
             ) : (
                 <FlatList
                     ref={flatListRef}
-                    data={filteredEvents}
-                    keyExtractor={(item) => item.id.toString()}
+                    data={feedWithAds}
+                    keyExtractor={(item, index) => {
+                        if (item._adType === 'admob_banner') return `admob_${item._id || index}`;
+                        return item.id ? item.id.toString() : index.toString();
+                    }}
                     renderItem={renderEvent}
                     contentContainerStyle={styles.listContent}
                     onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}

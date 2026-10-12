@@ -13,6 +13,8 @@ import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
 import { Audio } from 'expo-av';
 import LinkedText from '../components/LinkedText';
+import useInterstitialAd from '../hooks/useInterstitialAd';
+import AdBannerCard from '../components/AdBannerCard';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -204,6 +206,13 @@ export default function CommunityPostDetailsScreen() {
     const [currentImage, setCurrentImage] = useState(0);
     const postCarouselRef = useRef(null);
     const [processingAdmin, setProcessingAdmin] = useState(false);
+
+    // ─── AdMob: Interstitial on post open ───
+    const { showInterstitial } = useInterstitialAd();
+    useEffect(() => {
+        const timer = setTimeout(() => showInterstitial(), 1500);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         const fetchCurrentUser = async () => {
@@ -512,6 +521,9 @@ export default function CommunityPostDetailsScreen() {
 
                         <LinkedText style={styles.postContent}>{post.content}</LinkedText>
                     </View>
+
+                    {/* Google AdMob Banner */}
+                    <AdBannerCard size="LARGE" />
 
                     {/* Comments Section */}
                     <View style={styles.commentsSection}>

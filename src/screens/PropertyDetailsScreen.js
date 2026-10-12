@@ -12,6 +12,8 @@ import ImageViewing from '../components/ImageViewer';
 import { WebView } from 'react-native-webview';
 import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
+import useInterstitialAd from '../hooks/useInterstitialAd';
+import AdBannerCard from '../components/AdBannerCard';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -42,6 +44,13 @@ export default function PropertyDetailsScreen() {
     const [hasClickedButton, setHasClickedButton] = useState(false);
 
     const [processingAdmin, setProcessingAdmin] = useState(false);
+
+    // ─── AdMob: Interstitial on property open ───
+    const { showInterstitial } = useInterstitialAd();
+    useEffect(() => {
+        const timer = setTimeout(() => showInterstitial(), 1500);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         fetchPropertyDetails();
@@ -444,6 +453,9 @@ export default function PropertyDetailsScreen() {
                     </TouchableOpacity>
                 )}
             </View>
+
+            {/* Google AdMob Banner */}
+            <AdBannerCard size="LARGE" />
 
             {/* Inquiry Modal */}
             <Modal visible={showInquiryModal} transparent animationType="slide">

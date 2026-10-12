@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions, Platform, TextInput, Alert, KeyboardAvoidingView, Vibration, Share, FlatList } from 'react-native';
 import axios from 'axios';
@@ -13,6 +13,8 @@ import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
 import { Audio } from 'expo-av';
 import LinkedText from '../components/LinkedText';
+import useInterstitialAd from '../hooks/useInterstitialAd';
+import AdBannerCard from '../components/AdBannerCard';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -232,6 +234,14 @@ export default function StateNewsDetailsScreen() {
     const [currentImage, setCurrentImage] = useState(0);
     const detailCarouselRef = useRef(null);
     const [featuredProperty, setFeaturedProperty] = useState(null);
+
+    // ─── AdMob: Show interstitial when article opens ───
+    const { showInterstitial } = useInterstitialAd();
+    useEffect(() => {
+        // Small delay so article loads first, then show ad
+        const timer = setTimeout(() => showInterstitial(), 1500);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         const fetchCurrentUser = async () => {
@@ -638,6 +648,8 @@ export default function StateNewsDetailsScreen() {
                                 return (
                                     <>
                                         <LinkedText style={styles.newsContent}>{chunks[0]}</LinkedText>
+                                        {/* Google AdMob Banner inside article */}
+                                        <AdBannerCard />
                                         {chunks.length > 1 && renderPropAd(0)}
                                         {chunks.length > 1 && (
                                             <LinkedText style={styles.newsContent} numberOfLines={5}>
@@ -659,6 +671,8 @@ export default function StateNewsDetailsScreen() {
                                     {chunks.map((chunk, idx) => (
                                         <React.Fragment key={idx}>
                                             <LinkedText style={styles.newsContent}>{chunk}</LinkedText>
+                                            {/* AdMob banner every 2 chunks */}
+                                            {idx % 2 === 0 && idx < chunks.length - 1 && <AdBannerCard />}
                                             {idx < chunks.length - 1 && renderPropAd(idx)}
                                         </React.Fragment>
                                     ))}
@@ -672,6 +686,9 @@ export default function StateNewsDetailsScreen() {
                         })()}
                     </MotiView>
 
+
+                    {/* Google AdMob Large Banner before comments */}
+                    <AdBannerCard size="LARGE" />
 
                     {/* Comments Section */}
                     <View style={styles.commentsSection}>

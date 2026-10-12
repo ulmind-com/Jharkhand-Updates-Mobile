@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Vibration, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, ScrollView, RefreshControl } from 'react-native';
@@ -10,6 +10,7 @@ import { View as MotiView } from 'moti';
 import { PropertySkeleton } from '../components/Skeletons';
 import { useNavigation } from '@react-navigation/native';
 import { ThemeContext } from '../context/ThemeContext';
+import AdBannerCard from '../components/AdBannerCard';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
@@ -141,7 +142,22 @@ export default function PropertiesScreen() {
         return `₹${num.toLocaleString("en-IN")}`;
     };
 
+    // Build feed with ads every 5 items
+    const feedWithAds = useMemo(() => {
+        const result = [];
+        filteredProperties.forEach((prop, idx) => {
+            result.push({ ...prop, _adType: 'property' });
+            if ((idx + 1) % 3 === 0) {
+                result.push({ _adType: 'admob_banner', _id: `admob_prop_${idx}` });
+            }
+        });
+        return result;
+    }, [filteredProperties]);
+
     const renderProperty = ({ item }) => {
+        if (item._adType === 'admob_banner') {
+            return <AdBannerCard />;
+        }
         const inactive = isSoldOrRented(item);
 
         return (
@@ -362,8 +378,11 @@ export default function PropertiesScreen() {
             ) : (
                 <FlatList
                     ref={flatListRef}
-                    data={filteredProperties}
-                    keyExtractor={(item) => item.id.toString()}
+                    data={feedWithAds}
+                    keyExtractor={(item, index) => {
+                        if (item._adType === 'admob_banner') return `admob_${item._id || index}`;
+                        return item.id ? item.id.toString() : index.toString();
+                    }}
                     renderItem={renderProperty}
                     contentContainerStyle={styles.listContent}
                     onScroll={(e) => { scrollOffset.current = e.nativeEvent.contentOffset.y; }}

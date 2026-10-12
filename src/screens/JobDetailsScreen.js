@@ -12,6 +12,8 @@ import ImageViewing from '../components/ImageViewer';
 import { DetailSkeleton } from '../components/Skeletons';
 import { ThemeContext } from '../context/ThemeContext';
 import LinkedText from '../components/LinkedText';
+import useInterstitialAd from '../hooks/useInterstitialAd';
+import AdBannerCard from '../components/AdBannerCard';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -203,6 +205,13 @@ export default function JobDetailsScreen() {
     const [imageRatio, setImageRatio] = useState(null);
     const [isImageViewVisible, setIsImageViewVisible] = useState(false);
     const [processingAdmin, setProcessingAdmin] = useState(false);
+
+    // ─── AdMob: Interstitial on job open ───
+    const { showInterstitial } = useInterstitialAd();
+    useEffect(() => {
+        const timer = setTimeout(() => showInterstitial(), 1500);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         const fetchCurrentUser = async () => {
@@ -490,6 +499,9 @@ export default function JobDetailsScreen() {
                             )}
                         </View>
                     </MotiView>
+
+                    {/* Google AdMob Banner */}
+                    <AdBannerCard size="LARGE" />
 
                     {/* Comments Section */}
                     <View style={styles.commentsSection}>

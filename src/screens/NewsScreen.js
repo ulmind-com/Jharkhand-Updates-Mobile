@@ -13,6 +13,7 @@ import WeatherWidget from '../components/WeatherWidget';
 import { useLocation } from '../context/LocationContext';
 import { ThemeContext } from '../context/ThemeContext';
 import FestivalBanner from '../components/FestivalBanner';
+import AdBannerCard from '../components/AdBannerCard';
 import NewsCard from '../components/NewsCard';
 import RssNewsCard from '../components/RssNewsCard';
 
@@ -342,31 +343,47 @@ export default function NewsScreen() {
         return unsubscribe;
     }, [navigation]);
 
-    // Inject properties into a news batch, continuing from where the pool left off.
-    // When pool exhausts, reshuffle avoiding back-to-back with the last shown property.
+    // ─── AdMob Banner counter (separate from property gap) ───────────────────
+    const adGapCountRef = useRef(0);
+    const AD_EVERY_N = 3; // Show an AdMob banner every 3 news items — max revenue
+
+    // Inject properties + AdMob banners into a news batch.
+    // Properties: every 3–5 items. AdMob banners: every 5 items.
     const injectBatch = (newsBatch, propPool) => {
-        if (!propPool.length) return newsBatch.map(n => ({ ...n, _type: 'news' }));
         const result = [];
-        newsBatch.forEach(item => {
-            result.push({ ...item, _type: 'news' });
-            gapCountRef.current++;
-            if (gapCountRef.current >= nextGapRef.current) {
-                // If pool is exhausted, reshuffle for another cycle
-                if (propIdxRef.current >= propPool.length) {
-                    let reshuffled = shuffleArray(propPool);
-                    // Ensure no back-to-back: if first item same as last shown, rotate it to end
-                    if (lastShownIdRef.current && reshuffled.length > 1 && reshuffled[0].id === lastShownIdRef.current) {
-                        reshuffled = [...reshuffled.slice(1), reshuffled[0]];
+        newsBatch.forEach((item, idx) => {
+            result.push({ ...item, _type: item._type || 'news' });
+
+            // ── Property injection ──
+            if (propPool.length) {
+                gapCountRef.current++;
+                if (gapCountRef.current >= nextGapRef.current) {
+                    // If pool is exhausted, reshuffle for another cycle
+                    if (propIdxRef.current >= propPool.length) {
+                        let reshuffled = shuffleArray(propPool);
+                        if (lastShownIdRef.current && reshuffled.length > 1 && reshuffled[0].id === lastShownIdRef.current) {
+                            reshuffled = [...reshuffled.slice(1), reshuffled[0]];
+                        }
+                        propPoolRef.current = reshuffled;
+                        propIdxRef.current = 0;
                     }
-                    propPoolRef.current = reshuffled;
-                    propIdxRef.current = 0;
+                    const prop = propPoolRef.current[propIdxRef.current];
+                    result.push({ ...prop, _type: 'property' });
+                    lastShownIdRef.current = prop.id;
+                    propIdxRef.current++;
+                    gapCountRef.current = 0;
+                    nextGapRef.current = 3 + Math.floor(Math.random() * 3);
                 }
-                const prop = propPoolRef.current[propIdxRef.current];
-                result.push({ ...prop, _type: 'property' });
-                lastShownIdRef.current = prop.id;
-                propIdxRef.current++;
-                gapCountRef.current = 0;
-                nextGapRef.current = 3 + Math.floor(Math.random() * 3); // next gap: 3–5
+            }
+
+            // ── AdMob Banner injection (every AD_EVERY_N items) ──
+            adGapCountRef.current++;
+            if (adGapCountRef.current >= AD_EVERY_N) {
+                result.push({
+                    _type: 'admob_banner',
+                    _id: `admob_${result.length}_${Date.now()}`,
+                });
+                adGapCountRef.current = 0;
             }
         });
         return result;
@@ -463,6 +480,9 @@ export default function NewsScreen() {
     };
 
     const renderItem = ({ item }) => {
+        if (item._type === 'admob_banner') {
+            return <AdBannerCard type="news" />;
+        }
         if (item._type === 'property') {
             return (
                 <PropertyAdCard
@@ -520,6 +540,7 @@ export default function NewsScreen() {
                     ListHeaderComponent={renderFeedHeader}
                     data={feed}
                     keyExtractor={(item, index) => {
+                        if (item._type === 'admob_banner') return `admob_${item._id || index}`;
                         if (item._type === 'property') return `prop_${item.id}_${index}`;
                         if (item._type === 'rss_news') return `rss_${item.id}_${index}`;
                         return item.id ? item.id.toString() : index.toString();

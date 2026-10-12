@@ -53,6 +53,8 @@ import VendorDashboardScreen from './src/screens/VendorDashboardScreen';
 import { LocationProvider } from './src/context/LocationContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { setupNotificationChannel } from './src/services/ScoreNotificationService';
+import useAppOpenAd from './src/hooks/useAppOpenAd';
+import mobileAds from 'react-native-google-mobile-ads';
 
 const Stack = createNativeStackNavigator();
 export const navigationRef = createNavigationContainerRef();
@@ -65,6 +67,9 @@ export default function App() {
     Outfit_700Bold,
   });
   const [showSplash, setShowSplash] = useState(true);
+
+  // ─── Google AdMob: App Open Ad (shows when app opens / returns from background) ───
+  useAppOpenAd();
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -116,6 +121,16 @@ export default function App() {
 
     // Initialize Score Notification Channel for Android
     setupNotificationChannel();
+
+    // ─── Initialize Google Mobile Ads SDK ───
+    mobileAds()
+      .initialize()
+      .then(adapterStatuses => {
+        console.log('[AdMob] SDK initialized successfully');
+      })
+      .catch(err => {
+        console.log('[AdMob] SDK init error:', err);
+      });
   }, []);
 
   if (!fontsLoaded || showSplash) {

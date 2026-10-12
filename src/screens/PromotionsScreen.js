@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as Haptics from 'expo-haptics';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, Image, Dimensions, TouchableOpacity, TextInput, Platform, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { View as MotiView } from 'moti';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { ThemeContext } from '../context/ThemeContext';
+import AdBannerCard from '../components/AdBannerCard';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 const { width } = Dimensions.get('window');
@@ -153,7 +154,23 @@ export default function PromotionsScreen() {
         </View>
     );
 
-    const renderCard = ({ item }) => (
+    // Build feed with ads every 5 items
+    const feedWithAds = useMemo(() => {
+        const result = [];
+        filteredShops.forEach((shop, idx) => {
+            result.push({ ...shop, _adType: 'shop' });
+            if ((idx + 1) % 3 === 0) {
+                result.push({ _adType: 'admob_banner', _id: `admob_promo_${idx}` });
+            }
+        });
+        return result;
+    }, [filteredShops]);
+
+    const renderCard = ({ item }) => {
+        if (item._adType === 'admob_banner') {
+            return <AdBannerCard />;
+        }
+        return (
         <TouchableOpacity
             style={[styles.card, {
                 backgroundColor: colors.surface,
@@ -223,7 +240,8 @@ export default function PromotionsScreen() {
                 </View>
             </View>
         </TouchableOpacity>
-    );
+        );
+    };
 
     const renderEmptyComponent = () => (
         <View style={[styles.emptyContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -291,8 +309,11 @@ export default function PromotionsScreen() {
             ) : (
                 <FlatList
                     ref={flatListRef}
-                    data={filteredShops}
-                    keyExtractor={(item) => item.id.toString()}
+                    data={feedWithAds}
+                    keyExtractor={(item, index) => {
+                        if (item._adType === 'admob_banner') return `admob_${item._id || index}`;
+                        return item.id ? item.id.toString() : index.toString();
+                    }}
                     renderItem={renderCard}
                     ListHeaderComponent={renderHeader()}
                     contentContainerStyle={styles.listContent}

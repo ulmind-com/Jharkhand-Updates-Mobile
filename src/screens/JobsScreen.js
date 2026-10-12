@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Vibration, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { View, Text, FlatList, Image, TouchableOpacity, StyleSheet, ActivityIndicator, Linking, TextInput, RefreshControl } from 'react-native';
@@ -10,6 +10,7 @@ import { View as MotiView } from 'moti';
 import { JobSkeleton } from '../components/Skeletons';
 import { useNavigation } from '@react-navigation/native';
 import { ThemeContext } from '../context/ThemeContext';
+import AdBannerCard from '../components/AdBannerCard';
 
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
 
@@ -95,12 +96,30 @@ export default function JobsScreen() {
         job.location?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    // Build jobs feed with AdMob banner ads every 5 items
+    const feedWithAds = useMemo(() => {
+        const result = [];
+        filteredJobs.forEach((job, idx) => {
+            result.push({ ...job, _adType: 'job' });
+            if ((idx + 1) % 3 === 0) {
+                result.push({
+                    _adType: 'admob_banner',
+                    _id: `admob_jobs_${idx}_${Date.now()}`,
+                });
+            }
+        });
+        return result;
+    }, [filteredJobs]);
+
     const isJobExpired = (deadline) => {
         if (!deadline) return false;
         return new Date() > new Date(deadline);
     };
 
     const renderJob = ({ item }) => {
+        if (item._adType === 'admob_banner') {
+            return <AdBannerCard type="jobs" />;
+        }
         const expired = isJobExpired(item.applicationDeadline);
         const dateStr = item.applicationDeadline ? new Date(item.applicationDeadline).toLocaleDateString() : '';
 
@@ -226,8 +245,11 @@ export default function JobsScreen() {
             ) : (
                 <FlatList
                     ref={flatListRef}
-                    data={filteredJobs}
-                    keyExtractor={(item) => item.id.toString()}
+                    data={feedWithAds}
+                    keyExtractor={(item, index) => {
+                        if (item._adType === 'admob_banner') return `admob_${item._id || index}`;
+                        return item.id ? item.id.toString() : index.toString();
+                    }}
                     renderItem={renderJob}
                     contentContainerStyle={styles.listContent}
                     onEndReached={handleLoadMore}

@@ -14,6 +14,7 @@ import TopHeader from '../components/TopHeader';
 import { ThemeContext } from '../context/ThemeContext';
 import LinkedText from '../components/LinkedText';
 import ExternalNewsCard from '../components/ExternalNewsCard';
+import AdBannerCard from '../components/AdBannerCard';
 
 const { width } = Dimensions.get('window');
 const BASE_URL = 'https://api.jharkhandbiharupdates.com/api/v1';
@@ -415,7 +416,19 @@ export default function CommunityScreen() {
             result.push({ ...p, _type: 'community' });
         });
 
-        return result;
+        // ── Inject AdMob banners every 5 items ──
+        const withAds = [];
+        result.forEach((item, idx) => {
+            withAds.push(item);
+            if ((idx + 1) % 3 === 0) {
+                withAds.push({
+                    _type: 'admob_banner',
+                    _id: `admob_community_${idx}_${Date.now()}`,
+                });
+            }
+        });
+
+        return withAds;
     };
 
     const fetchComments = async (postId) => {
@@ -449,6 +462,9 @@ export default function CommunityScreen() {
     };
 
     const renderPost = ({ item }) => {
+        if (item._type === 'admob_banner') {
+            return <AdBannerCard type="community" />;
+        }
         if (item._type === 'external_news') {
             return (
                 <ExternalNewsCard
@@ -488,7 +504,10 @@ export default function CommunityScreen() {
                 <FlatList
                     ref={flatListRef}
                     data={buildMergedFeed(posts, extNewsPoolRef.current)}
-                    keyExtractor={(item, index) => item.id ? item.id.toString() + index : index.toString()}
+                    keyExtractor={(item, index) => {
+                        if (item._type === 'admob_banner') return `admob_${item._id || index}`;
+                        return item.id ? item.id.toString() + index : index.toString();
+                    }}
                     renderItem={renderPost}
                     contentContainerStyle={styles.listContent}
                     onEndReached={handleLoadMore}
