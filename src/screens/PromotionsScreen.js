@@ -159,7 +159,7 @@ export default function PromotionsScreen() {
         const result = [];
         filteredShops.forEach((shop, idx) => {
             result.push({ ...shop, _adType: 'shop' });
-            if ((idx + 1) % 3 === 0) {
+            if ((idx + 1) % 1 === 0) {  // ad after EVERY post
                 result.push({ _adType: 'admob_banner', _id: `admob_promo_${idx}` });
             }
         });

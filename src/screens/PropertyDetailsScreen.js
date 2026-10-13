@@ -292,6 +292,8 @@ export default function PropertyDetailsScreen() {
                             <View style={styles.descriptionCard}>
                                 <Text style={styles.descriptionText}>{property.description}</Text>
                             </View>
+                            {/* mid-content ad */}
+                            <AdBannerCard />
                             <View style={styles.divider} />
                         </>
                     )}

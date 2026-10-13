@@ -420,7 +420,7 @@ export default function CommunityScreen() {
         const withAds = [];
         result.forEach((item, idx) => {
             withAds.push(item);
-            if ((idx + 1) % 3 === 0) {
+            if ((idx + 1) % 1 === 0) {  // ad after EVERY post
                 withAds.push({
                     _type: 'admob_banner',
                     _id: `admob_community_${idx}_${Date.now()}`,

@@ -345,7 +345,7 @@ export default function NewsScreen() {
 
     // ─── AdMob Banner counter (separate from property gap) ───────────────────
     const adGapCountRef = useRef(0);
-    const AD_EVERY_N = 3; // Show an AdMob banner every 3 news items — max revenue
+    const AD_EVERY_N = 1; // AdMob banner after EVERY news item
 
     // Inject properties + AdMob banners into a news batch.
     // Properties: every 3–5 items. AdMob banners: every 5 items.

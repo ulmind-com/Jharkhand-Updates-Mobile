@@ -520,6 +520,8 @@ export default function CommunityPostDetailsScreen() {
                         )}
 
                         <LinkedText style={styles.postContent}>{post.content}</LinkedText>
+                        {/* mid-content ad */}
+                        <AdBannerCard />
                     </View>
 
                     {/* Google AdMob Banner */}

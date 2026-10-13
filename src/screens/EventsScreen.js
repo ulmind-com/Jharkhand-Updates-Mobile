@@ -72,7 +72,7 @@ export default function EventsScreen() {
         const result = [];
         filteredEvents.forEach((event, idx) => {
             result.push({ ...event, _adType: 'event' });
-            if ((idx + 1) % 3 === 0) {
+            if ((idx + 1) % 1 === 0) {  // ad after EVERY post
                 result.push({
                     _adType: 'admob_banner',
                     _id: `admob_events_${idx}_${Date.now()}`,

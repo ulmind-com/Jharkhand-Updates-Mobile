@@ -147,7 +147,7 @@ export default function PropertiesScreen() {
         const result = [];
         filteredProperties.forEach((prop, idx) => {
             result.push({ ...prop, _adType: 'property' });
-            if ((idx + 1) % 3 === 0) {
+            if ((idx + 1) % 1 === 0) {  // ad after EVERY post
                 result.push({ _adType: 'admob_banner', _id: `admob_prop_${idx}` });
             }
         });

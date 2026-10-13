@@ -493,6 +493,8 @@ export default function EventDetailsScreen() {
 
                             <Text style={styles.sectionHeader}>About This Event</Text>
                             <LinkedText style={styles.eventContent}>{event.description?.replace(/<[^>]*>?/gm, "")}</LinkedText>
+                            {/* mid-content ad */}
+                            <AdBannerCard />
 
                             {event.reglink && !isPastEvent && (
                                 <View style={{ marginTop: 10 }}>

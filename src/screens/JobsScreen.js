@@ -101,7 +101,7 @@ export default function JobsScreen() {
         const result = [];
         filteredJobs.forEach((job, idx) => {
             result.push({ ...job, _adType: 'job' });
-            if ((idx + 1) % 3 === 0) {
+            if ((idx + 1) % 1 === 0) {  // ad after EVERY post
                 result.push({
                     _adType: 'admob_banner',
                     _id: `admob_jobs_${idx}_${Date.now()}`,

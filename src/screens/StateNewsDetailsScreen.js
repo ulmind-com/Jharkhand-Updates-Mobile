@@ -672,7 +672,7 @@ export default function StateNewsDetailsScreen() {
                                         <React.Fragment key={idx}>
                                             <LinkedText style={styles.newsContent}>{chunk}</LinkedText>
                                             {/* AdMob banner every 2 chunks */}
-                                            {idx % 2 === 0 && idx < chunks.length - 1 && <AdBannerCard />}
+                                            {idx < chunks.length - 1 && <AdBannerCard />}  {/* ad after EVERY chunk */}
                                             {idx < chunks.length - 1 && renderPropAd(idx)}
                                         </React.Fragment>
                                     ))}

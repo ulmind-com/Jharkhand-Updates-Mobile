@@ -486,6 +486,8 @@ export default function JobDetailsScreen() {
 
                             <Text style={styles.sectionHeader}>Description</Text>
                             <LinkedText style={styles.jobContent}>{job.description?.replace(/<[^>]*>?/gm, "")}</LinkedText>
+                            {/* mid-content ad */}
+                            <AdBannerCard />
 
                             {job.reglink && !expired && (
                                 <View style={{ marginTop: 10 }}>
