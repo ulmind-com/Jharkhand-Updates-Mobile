@@ -72,7 +72,20 @@
           "mode": "production"
         }
       ],
-
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "2.3.0"
+          }
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-4004104553380757~8682291363"
+        }
+      ]
     ],
     "extra": {
       "eas": {
