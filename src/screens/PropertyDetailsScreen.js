@@ -191,6 +191,8 @@ export default function PropertyDetailsScreen() {
                 {/* Meta Header Block */}
                 <View style={styles.metaContainer}>
                     <Text style={styles.propertyTitleMain}>{property.title}</Text>
+                    {/* top ad */}
+                    <AdBannerCard />
                     <View style={styles.locationRowMain}>
                         <Ionicons name="location-outline" size={16} color="#059669" />
                         <Text style={styles.locationTextMain}>{formatAddress()}</Text>

@@ -450,6 +450,8 @@ export default function JobDetailsScreen() {
 
                         <View style={styles.jobInfo}>
                             <Text style={[styles.jobTitle, expired && { color: '#9ca3af' }]}>{job.title}</Text>
+                            {/* top ad */}
+                            <AdBannerCard />
 
                             <View style={styles.tagsRow}>
                                 {job.company && (

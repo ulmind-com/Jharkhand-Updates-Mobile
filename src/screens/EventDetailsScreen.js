@@ -458,6 +458,8 @@ export default function EventDetailsScreen() {
 
                         <View style={styles.eventInfo}>
                             <Text style={[styles.eventTitle, isPastEvent && { color: '#9ca3af' }]}>{event.title}</Text>
+                            {/* top ad */}
+                            <AdBannerCard />
 
                             <View style={styles.dateTimeRow}>
                                 <View style={[styles.dateBox, isPastEvent && { backgroundColor: colors.surfaceDeeper }]}>

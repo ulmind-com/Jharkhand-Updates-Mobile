@@ -460,6 +460,8 @@ export default function CommunityPostDetailsScreen() {
 
                         {/* Post Content */}
                         {post.title ? <Text style={styles.postTitle}>{post.title}</Text> : null}
+                        {/* top ad */}
+                        <AdBannerCard />
 
                         {post.imageUrls && post.imageUrls.length > 0 && (
                             <>
